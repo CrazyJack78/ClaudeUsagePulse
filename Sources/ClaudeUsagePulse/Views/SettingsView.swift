@@ -5,12 +5,15 @@ struct SettingsView: View {
     let onLogout: () -> Void
     let onSettingsChanged: () -> Void
 
-    @AppStorage("displayMode")      private var displayMode:      String = "menubar"
-    @AppStorage("menubarTop")       private var menubarTop:       String = "session"
-    @AppStorage("menubarBottom")    private var menubarBottom:    String = "weekly"
-    @AppStorage("windowStyle")      private var windowStyle:      String = "bars"
-    @AppStorage("alwaysOnTop")      private var alwaysOnTop:      Bool   = false
-    @AppStorage("refreshInterval")  private var refreshInterval:  Double = 10
+    @AppStorage("displayMode")       private var displayMode:       String = "menubar"
+    @AppStorage("menubarTop")        private var menubarTop:        String = "session"
+    @AppStorage("menubarBottom")     private var menubarBottom:     String = "weekly"
+    @AppStorage("menubarBackground") private var menubarBackground: Bool   = true
+    @AppStorage("windowStyle")       private var windowStyle:       String = "bars"
+    @AppStorage("alwaysOnTop")       private var alwaysOnTop:       Bool   = false
+    @AppStorage("refreshInterval")   private var refreshInterval:   Double = 10
+
+    @State private var menubarBgColor: Color = SettingsView.loadBgColor()
 
     @State private var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
 
@@ -26,7 +29,28 @@ struct SettingsView: View {
             }
 
             if displayMode == "menubar" || displayMode == "both" {
-                Section("Menubar") {
+                Section("Menubar-Hintergrund") {
+                    Toggle("Hintergrund anzeigen", isOn: $menubarBackground)
+                        .onChange(of: menubarBackground) { onSettingsChanged() }
+
+                    if menubarBackground {
+                        ColorPicker("Farbe", selection: $menubarBgColor, supportsOpacity: true)
+                            .onChange(of: menubarBgColor) {
+                                SettingsView.saveBgColor(menubarBgColor)
+                                onSettingsChanged()
+                            }
+
+                        Button("Farbe zurücksetzen") {
+                            menubarBgColor = SettingsView.defaultBgColor()
+                            SettingsView.saveBgColor(menubarBgColor)
+                            onSettingsChanged()
+                        }
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 12))
+                    }
+                }
+
+                Section("Menubar-Slots") {
                     Picker("Obere Zeile", selection: $menubarTop) {
                         Text("Session (5h)").tag("session")
                         Text("Wöchentlich (7d)").tag("weekly")
@@ -96,5 +120,25 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 380)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Hintergrundfarbe Persistenz
+
+    static func defaultBgColor() -> Color {
+        Color(NSColor.black.withAlphaComponent(0.45))
+    }
+
+    static func loadBgColor() -> Color {
+        guard let data = UserDefaults.standard.data(forKey: "menubarBgColor"),
+              let ns = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: data)
+        else { return defaultBgColor() }
+        return Color(ns)
+    }
+
+    static func saveBgColor(_ color: Color) {
+        let ns = NSColor(color)
+        if let data = try? NSKeyedArchiver.archivedData(withRootObject: ns, requiringSecureCoding: false) {
+            UserDefaults.standard.set(data, forKey: "menubarBgColor")
+        }
     }
 }

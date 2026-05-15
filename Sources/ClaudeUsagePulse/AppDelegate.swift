@@ -208,6 +208,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let image = NSImage(size: size)
         image.lockFocus()
 
+        if UserDefaults.standard.bool(forKey: "menubarBackground") {
+            let bgColor: NSColor
+            if let data = UserDefaults.standard.data(forKey: "menubarBgColor"),
+               let stored = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: data) {
+                bgColor = stored
+            } else {
+                bgColor = NSColor.black.withAlphaComponent(0.45)
+            }
+            bgColor.setFill()
+            NSBezierPath(
+                roundedRect: NSRect(x: 1, y: 1, width: size.width - 2, height: size.height - 2),
+                xRadius: 5, yRadius: 5
+            ).fill()
+        }
+
         if stacked {
             let rowH = size.height / 2
             for (i, attr) in attrRows.enumerated() {
