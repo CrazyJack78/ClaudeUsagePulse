@@ -7,10 +7,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem!
     private var refreshTimer: Timer?
+    private var isAuthenticated = false
 
     private let store = UsageStore()
     private lazy var floatingWindowController = FloatingWindowController(store: store)
-    private let authWebWindow    = AuthWebWindow()
+    private let authWebWindow     = AuthWebWindow()
     private let settingsController = SettingsWindowController()
 
     // MARK: - Lifecycle
@@ -18,27 +19,69 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         setupCallbacks()
-
-        if KeychainService.hasCookies() {
-            scheduleTimer()
-            Task { await refresh() }
-        } else {
-            // WebStore leeren damit alte Sitzungs-Cookies das Login-Fenster nicht sofort schließen
-            WKWebsiteDataStore.default().removeData(
-                ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
-                modifiedSince: Date(timeIntervalSince1970: 0)
-            ) { [weak self] in
-                DispatchQueue.main.async { self?.authWebWindow.show() }
-            }
-        }
+        checkAuthAndStart()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return false  // Menubar-App läuft ohne sichtbare Fenster weiter
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         floatingWindowController.savePosition()
+    }
+
+    // MARK: - Auth-Check beim Start
+
+    private func checkAuthAndStart() {
+        guard KeychainService.hasCookies() else {
+            setUnauthenticated()
+            return
+        }
+        // Credentials vorhanden → API testen
+        Task { @MainActor in
+            do {
+                store.data      = try await APIService.shared.fetchUsageData()
+                store.data.error = nil
+                isAuthenticated  = true
+                scheduleTimer()
+                updateMenubar()
+            } catch {
+                // Credentials ungültig → alles bereinigen
+                cleanupCredentials { [weak self] in
+                    self?.setUnauthenticated()
+                }
+            }
+        }
+    }
+
+    private func setUnauthenticated() {
+        isAuthenticated = false
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+        store.data = UsageData()
+        guard let btn = statusItem?.button else { return }
+        btn.image = nil
+        btn.title = "Anmelden"
+        updateMenubar()
+    }
+
+    private func cleanupCredentials(completion: (() -> Void)? = nil) {
+        KeychainService.clearAll()
+        APIService.shared.resetOrgId()
+        WKWebsiteDataStore.default().removeData(
+            ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+            modifiedSince: Date(timeIntervalSince1970: 0)
+        ) {
+            DispatchQueue.main.async { completion?() }
+        }
+    }
+
+    // MARK: - Login
+
+    @objc private func showLogin() {
+        cleanupCredentials { [weak self] in
+            self?.authWebWindow.show()
+        }
     }
 
     // MARK: - StatusItem
@@ -62,7 +105,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func handleLeftClick() {
         let mode = UserDefaults.standard.string(forKey: "displayMode") ?? "menubar"
-        if mode == "floating" || mode == "both" {
+        if isAuthenticated && (mode == "floating" || mode == "both") {
             floatingWindowController.toggle()
         } else {
             showContextMenu()
@@ -72,22 +115,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showContextMenu() {
         let menu = NSMenu()
 
-        let s = Int(store.data.sessionPercentage)
-        let w = Int(store.data.weeklyPercentage)
-        let info = NSMenuItem(title: "Session: \(s)%  |  Wöchentlich: \(w)%", action: nil, keyEquivalent: "")
-        info.isEnabled = false
-        menu.addItem(info)
+        if isAuthenticated {
+            let s = Int(store.data.sessionPercentage)
+            let w = Int(store.data.weeklyPercentage)
+            let info = NSMenuItem(title: "Session: \(s)%  |  Wöchentlich: \(w)%", action: nil, keyEquivalent: "")
+            info.isEnabled = false
+            menu.addItem(info)
+            menu.addItem(.separator())
+            let floatLabel = floatingWindowController.isVisible ? "Fenster ausblenden" : "Fenster anzeigen"
+            menu.addItem(makeItem(floatLabel, action: #selector(toggleFloat), key: "f"))
+            menu.addItem(makeItem("Jetzt aktualisieren", action: #selector(manualRefresh), key: "r"))
+            menu.addItem(.separator())
+            menu.addItem(makeItem("Einstellungen…", action: #selector(openSettings), key: ","))
+        } else {
+            menu.addItem(makeItem("Bei Claude anmelden…", action: #selector(showLogin), key: "l"))
+        }
 
         menu.addItem(.separator())
-
-        let floatLabel = floatingWindowController.isVisible ? "Fenster ausblenden" : "Fenster anzeigen"
-        menu.addItem(makeItem(floatLabel, action: #selector(toggleFloat), key: "f"))
-        menu.addItem(makeItem("Jetzt aktualisieren", action: #selector(manualRefresh), key: "r"))
-
-        menu.addItem(.separator())
-        menu.addItem(makeItem("Einstellungen…", action: #selector(openSettings), key: ","))
-        menu.addItem(.separator())
-
         let quitItem = NSMenuItem(title: "ClaudeUsagePulse beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
         menu.addItem(quitItem)
@@ -107,6 +151,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateMenubar() {
         guard let btn = statusItem?.button else { return }
+
+        if !isAuthenticated {
+            DispatchQueue.main.async {
+                btn.image = nil
+                btn.title = "Anmelden"
+            }
+            return
+        }
+
         let style = UserDefaults.standard.string(forKey: "menubarStyle") ?? "both"
         let s = store.data.sessionPercentage
         let w = store.data.weeklyPercentage
@@ -117,7 +170,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 btn.title = "⚠️"
                 return
             }
-
             let image: NSImage
             switch style {
             case "session":
@@ -128,28 +180,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             default:
                 image = self.renderMenubarImage(rows: [("Se", s), ("We", w)])
             }
-
             btn.title = ""
             btn.image = image
             btn.imagePosition = .imageOnly
         }
     }
 
-    // Zeichnet eine oder zwei Zeilen als NSImage für den StatusItem-Button
     private func renderMenubarImage(rows: [(String, Double)]) -> NSImage {
-        let barH  = NSStatusBar.system.thickness          // ~22pt
+        let barH  = NSStatusBar.system.thickness
         let fontS = NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)
         let fontL = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-
-        // Strings und Attribute vorbereiten
         let labelColor = NSColor.white
         let stacked = rows.count > 1
 
         let attrRows: [NSAttributedString] = rows.map { (label, pct) in
             let str = NSMutableAttributedString()
             str.append(NSAttributedString(string: "\(label) ", attributes: [
-                .font: stacked ? fontS : fontS,
-                .foregroundColor: labelColor
+                .font: fontS, .foregroundColor: labelColor
             ]))
             str.append(NSAttributedString(string: "\(Int(pct))%", attributes: [
                 .font: stacked ? fontS : fontL,
@@ -159,9 +206,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let maxW = attrRows.map { $0.size().width }.max() ?? 40
-        let imgW  = ceil(maxW) + 4
-        let size  = NSSize(width: imgW, height: barH)
-
+        let size  = NSSize(width: ceil(maxW) + 4, height: barH)
         let image = NSImage(size: size)
         image.lockFocus()
 
@@ -176,8 +221,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } else {
             let aSize = attrRows[0].size()
-            let y = (size.height - aSize.height) / 2
-            attrRows[0].draw(at: NSPoint(x: size.width - aSize.width - 2, y: y))
+            attrRows[0].draw(at: NSPoint(x: size.width - aSize.width - 2, y: (size.height - aSize.height) / 2))
         }
 
         image.unlockFocus()
@@ -193,14 +237,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Actions
 
-    @objc private func toggleFloat() { floatingWindowController.toggle() }
+    @objc private func toggleFloat()   { floatingWindowController.toggle() }
     @objc private func manualRefresh() { Task { await refresh() } }
-    @objc private func openSettings() { settingsController.show() }
+    @objc private func openSettings()  { settingsController.show() }
 
     // MARK: - Callbacks
 
     private func setupCallbacks() {
         authWebWindow.onAuthSuccess = { [weak self] in
+            self?.isAuthenticated = true
             self?.scheduleTimer()
             Task { await self?.refresh() }
         }
@@ -211,25 +256,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.scheduleTimer()
         }
 
-        settingsController.onLogout = {
-            // Keychain leeren
-            KeychainService.clearAll()
-            APIService.shared.resetOrgId()
-
-            // WebView-Session + alle Caches löschen
-            WKWebsiteDataStore.default().removeData(
-                ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
-                modifiedSince: Date(timeIntervalSince1970: 0)
-            ) {
-                // App neu starten → sauberer Login-Prozess
-                DispatchQueue.main.async {
-                    let path = Bundle.main.bundlePath
-                    let task = Process()
-                    task.launchPath = "/bin/sh"
-                    task.arguments = ["-c", "sleep 0.8 && open '\(path)'"]
-                    try? task.run()
-                    NSApp.terminate(nil)
-                }
+        settingsController.onLogout = { [weak self] in
+            self?.refreshTimer?.invalidate()
+            self?.refreshTimer = nil
+            self?.cleanupCredentials {
+                self?.setUnauthenticated()
             }
         }
     }
@@ -240,7 +271,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         refreshTimer?.invalidate()
         let minutes = UserDefaults.standard.double(forKey: "refreshInterval")
         let interval = (minutes > 0 ? minutes : 10) * 60
-
         refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { await self?.refresh() }
         }
@@ -252,7 +282,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func refresh() async {
-        guard !isRefreshing else { return }
+        guard isAuthenticated, !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
 
@@ -267,10 +297,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } catch APIError.notAuthenticated {
             store.isLoading  = false
             store.data.error = "not_authenticated"
-            updateMenubar()
-            if !authWebWindow.isShowing {
-                authWebWindow.show()
-            }
+            isAuthenticated  = false
+            cleanupCredentials { [weak self] in self?.setUnauthenticated() }
         } catch {
             store.isLoading  = false
             store.data.error = error.localizedDescription

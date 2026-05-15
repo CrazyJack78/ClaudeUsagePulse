@@ -41,8 +41,12 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
 
         wv.load(URLRequest(url: URL(string: "https://claude.ai/login")!))
 
-        cookieCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.checkForAuthCookies()
+        // 3s Delay damit die Seite geladen ist bevor nach Cookies gesucht wird
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+            guard let self, self.isShowing else { return }
+            self.cookieCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+                self?.checkForAuthCookies()
+            }
         }
     }
 
