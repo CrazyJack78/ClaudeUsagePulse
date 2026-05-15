@@ -4,6 +4,8 @@
 <dict>
     <key>CFBundleName</key>
     <string>ClaudeUsagePulse</string>
+    <key>CFBundleDisplayName</key>
+    <string>ClaudeUsagePulse</string>
     <key>CFBundleIdentifier</key>
     <string>dev.jack.claudeusagepulse</string>
     <key>CFBundleVersion</key>
