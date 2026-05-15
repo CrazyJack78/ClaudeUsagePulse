@@ -257,6 +257,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         settingsController.onLogout = { [weak self] in
+            self?.settingsController.close()
             self?.refreshTimer?.invalidate()
             self?.refreshTimer = nil
             self?.cleanupCredentials {

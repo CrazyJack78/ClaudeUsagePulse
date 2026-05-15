@@ -12,6 +12,10 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    func close() {
+        window?.close()
+    }
+
     func windowWillClose(_ notification: Notification) {
         window = nil
     }
