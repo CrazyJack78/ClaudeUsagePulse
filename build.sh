@@ -15,6 +15,7 @@ mkdir -p "$APP/Contents/Resources"
 
 cp .build/release/ClaudeUsagePulse "$APP/Contents/MacOS/ClaudeUsagePulse"
 cp Sources/ClaudeUsagePulse/Resources/Info.plist "$APP/Contents/Info.plist"
+cp Sources/ClaudeUsagePulse/Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 echo "Signiere App Bundle..."
 codesign --force --deep --sign - "$APP"

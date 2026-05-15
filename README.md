@@ -1,5 +1,7 @@
 # ClaudeUsagePulse
 
+<img src="docs/icon_preview.png" width="128" align="right" alt="App Icon">
+
 A lightweight native macOS menu bar app that shows your [Claude.ai](https://claude.ai) usage limits in real time — no browser tab needed.
 
 ![Menu bar preview](docs/menubar_preview.png)

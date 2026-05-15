@@ -8,7 +8,7 @@ let package = Package(
         .executableTarget(
             name: "ClaudeUsagePulse",
             path: "Sources/ClaudeUsagePulse",
-            exclude: ["Resources/Info.plist"]
+            exclude: ["Resources/Info.plist", "Resources/AppIcon.icns"]
         )
     ]
 )
