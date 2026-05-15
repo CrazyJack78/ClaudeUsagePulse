@@ -129,7 +129,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(makeItem("Jetzt aktualisieren", action: #selector(manualRefresh), key: "r"))
             menu.addItem(.separator())
             menu.addItem(makeItem("Einstellungen…", action: #selector(openSettings), key: ","))
-            menu.addItem(makeItem("API-Daten erkunden…", action: #selector(exploreAPI), key: ""))
         } else {
             menu.addItem(makeItem("Bei Claude anmelden…", action: #selector(showLogin), key: "l"))
         }
