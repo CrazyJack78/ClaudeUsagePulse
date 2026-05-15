@@ -82,7 +82,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(makeItem("Einstellungen…", action: #selector(openSettings), key: ","))
         menu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: "ClaudeBar beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "ClaudeUsagePulse beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
         menu.addItem(quitItem)
 
