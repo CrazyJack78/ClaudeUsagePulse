@@ -3,11 +3,29 @@ import WebKit
 
 class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
     private var window: NSWindow?
-    private var webView: WKWebView?
     private var cookieCheckTimer: Timer?
     var onAuthSuccess: (() -> Void)?
-
     private(set) var isShowing = false
+
+    // Einmal erstellt, NIEMALS deallociert.
+    // WKWebView kommuniziert mit einem eigenen Web-Content-Prozess (IPC).
+    // Wird das WKWebView deallociert während der Prozess noch läuft, landen
+    // interne ObjC-Objekte im autorelease-Pool des Main-Run-Loops und werden
+    // am Ende des Zyklus doppelt released → SIGSEGV. Lösung: WKWebView bleibt
+    // für die gesamte App-Laufzeit am Leben; nur das NSWindow wird neu erstellt.
+    private let webView: WKWebView = {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = WKWebsiteDataStore.default()
+        let wv = WKWebView(frame: NSRect(x: 0, y: 0, width: 960, height: 720),
+                           configuration: config)
+        wv.autoresizingMask = [.width, .height]
+        return wv
+    }()
+
+    override init() {
+        super.init()
+        webView.navigationDelegate = self
+    }
 
     func show() {
         guard !isShowing else {
@@ -17,13 +35,6 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
         }
         isShowing = true
 
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = WKWebsiteDataStore.default()
-
-        let wv = WKWebView(frame: NSRect(x: 0, y: 0, width: 960, height: 720), configuration: config)
-        wv.navigationDelegate = self
-        self.webView = wv
-
         let win = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 960, height: 720),
             styleMask: [.titled, .closable, .resizable],
@@ -32,27 +43,34 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
         )
         win.title = "ClaudeUsagePulse — Bei Claude AI anmelden"
         win.animationBehavior = .none
-        win.contentView = wv
+        win.contentView = webView
+        webView.frame = win.contentView!.bounds
         win.delegate = self
         win.center()
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = win
 
-        wv.load(URLRequest(url: URL(string: "https://claude.ai/login")!))
+        webView.stopLoading()
+        webView.load(URLRequest(url: URL(string: "https://claude.ai/login")!))
     }
 
     func windowWillClose(_ notification: Notification) {
         cookieCheckTimer?.invalidate()
         cookieCheckTimer = nil
         isShowing = false
-        teardownWebView()
+        webView.stopLoading()
+        // WebView aus Fenster-Hierarchie lösen bevor das NSWindow deallociert wird.
+        // Das verhindert, dass das NSWindow beim Dealloc eine starke Referenz auf
+        // das WKWebView hält während Apples interne Autorelease-Objekte drainieren.
+        window?.contentView = NSView()
         window = nil
     }
 
     // MARK: - WKNavigationDelegate
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard let url = webView.url?.absoluteString, !url.hasPrefix("about:") else { return }
         guard cookieCheckTimer == nil else { return }
         cookieCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             self?.checkForAuthCookies()
@@ -62,8 +80,7 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
     // MARK: - Cookie-Check
 
     private func checkForAuthCookies() {
-        guard let wv = webView,
-              let currentURL = wv.url?.absoluteString else { return }
+        guard let currentURL = webView.url?.absoluteString else { return }
 
         let isAuthFlow = currentURL.contains("/login")
             || currentURL.contains("/auth")
@@ -95,26 +112,11 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
                 self.isShowing = false
                 let callback = self.onAuthSuccess
                 self.onAuthSuccess = nil
-                self.teardownWebView()
+                self.window?.contentView = NSView()
                 self.window?.close()
                 self.window = nil
                 callback?()
             }
-        }
-    }
-
-    // MARK: - Teardown
-
-    private func teardownWebView() {
-        guard let wv = webView else { return }
-        wv.stopLoading()
-        wv.navigationDelegate = nil
-        // WKWebView in eigenem autoreleasepool deallocieren: verhindert
-        // dass sein Dealloc-autorelease in den Haupt-RunLoop-Pool läuft
-        // und am Ende des Zyklus doppelt released wird (SIGSEGV).
-        autoreleasepool {
-            window?.contentView = NSView()  // WKWebView aus Fensterhierarchie entfernen
-            webView = nil                   // letzter Retain → Dealloc passiert hier, im Pool
         }
     }
 }
