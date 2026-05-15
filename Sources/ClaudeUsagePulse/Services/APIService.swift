@@ -62,6 +62,9 @@ class APIService {
     }
 
     private func fetchUsage(orgId: String, cookies: [HTTPCookie]) async throws -> UsageData {
+        guard orgId.range(of: #"^[a-zA-Z0-9_-]{1,64}$"#, options: .regularExpression) != nil else {
+            throw APIError.invalidResponse
+        }
         let json = try await getJSON(path: "/api/organizations/\(orgId)/usage", cookies: cookies)
 
         let fiveHour = json["five_hour"] as? [String: Any] ?? [:]
