@@ -158,29 +158,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return str
         }
 
-        // Breite = breiteste Zeile
         let maxW = attrRows.map { $0.size().width }.max() ?? 40
         let imgW  = ceil(maxW) + 4
+        let size  = NSSize(width: imgW, height: barH)
 
-        let image = NSImage(size: NSSize(width: imgW, height: barH), flipped: false) { rect in
-            if stacked {
-                // Zwei Zeilen übereinander
-                let rowH = rect.height / 2
-                for (i, attr) in attrRows.enumerated() {
-                    let aSize = attr.size()
-                    let y: CGFloat = i == 0
-                        ? rect.height - rowH + (rowH - aSize.height) / 2   // oben
-                        : (rowH - aSize.height) / 2                          // unten
-                    attr.draw(at: NSPoint(x: rect.maxX - aSize.width - 2, y: y))
-                }
-            } else {
-                // Eine Zeile mittig
-                let aSize = attrRows[0].size()
-                let y = (rect.height - aSize.height) / 2
-                attrRows[0].draw(at: NSPoint(x: rect.maxX - aSize.width - 2, y: y))
+        let image = NSImage(size: size)
+        image.lockFocus()
+
+        if stacked {
+            let rowH = size.height / 2
+            for (i, attr) in attrRows.enumerated() {
+                let aSize = attr.size()
+                let y: CGFloat = i == 0
+                    ? size.height - rowH + (rowH - aSize.height) / 2
+                    : (rowH - aSize.height) / 2
+                attr.draw(at: NSPoint(x: size.width - aSize.width - 2, y: y))
             }
-            return true
+        } else {
+            let aSize = attrRows[0].size()
+            let y = (size.height - aSize.height) / 2
+            attrRows[0].draw(at: NSPoint(x: size.width - aSize.width - 2, y: y))
         }
+
+        image.unlockFocus()
         image.isTemplate = false
         return image
     }
