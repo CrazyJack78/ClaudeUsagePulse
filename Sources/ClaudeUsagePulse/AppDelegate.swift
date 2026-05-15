@@ -116,9 +116,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
 
         if isAuthenticated {
-            let s = Int(store.data.sessionPercentage)
-            let w = Int(store.data.weeklyPercentage)
-            let info = NSMenuItem(title: "Session: \(s)%  |  Wöchentlich: \(w)%", action: nil, keyEquivalent: "")
+            let s  = Int(store.data.sessionPercentage)
+            let w  = Int(store.data.weeklyPercentage)
+            let sn = Int(store.data.sonnetPercentage)
+            let d  = Int(store.data.designPercentage)
+            let info = NSMenuItem(title: "Se \(s)%  We \(w)%  Son \(sn)%  Des \(d)%", action: nil, keyEquivalent: "")
             info.isEnabled = false
             menu.addItem(info)
             menu.addItem(.separator())
@@ -127,6 +129,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(makeItem("Jetzt aktualisieren", action: #selector(manualRefresh), key: "r"))
             menu.addItem(.separator())
             menu.addItem(makeItem("Einstellungen…", action: #selector(openSettings), key: ","))
+            menu.addItem(makeItem("API-Daten erkunden…", action: #selector(exploreAPI), key: ""))
         } else {
             menu.addItem(makeItem("Bei Claude anmelden…", action: #selector(showLogin), key: "l"))
         }
@@ -160,9 +163,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let style = UserDefaults.standard.string(forKey: "menubarStyle") ?? "both"
-        let s = store.data.sessionPercentage
-        let w = store.data.weeklyPercentage
+        let top    = UserDefaults.standard.string(forKey: "menubarTop")    ?? "session"
+        let bottom = UserDefaults.standard.string(forKey: "menubarBottom") ?? "weekly"
 
         DispatchQueue.main.async {
             if self.store.data.error != nil {
@@ -170,18 +172,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 btn.title = "⚠️"
                 return
             }
-            let image: NSImage
-            switch style {
-            case "session":
-                image = self.renderMenubarImage(rows: [("Se", s)])
-            case "max":
-                let maxVal = max(s, w)
-                image = self.renderMenubarImage(rows: [(s >= w ? "Se" : "We", maxVal)])
-            default:
-                image = self.renderMenubarImage(rows: [("Se", s), ("We", w)])
+            let rows: [(String, Double)]
+            if bottom == "none" {
+                rows = [self.menubarRow(for: top)]
+            } else {
+                rows = [self.menubarRow(for: top), self.menubarRow(for: bottom)]
             }
             btn.title = ""
-            btn.image = image
+            btn.image = self.renderMenubarImage(rows: rows)
             btn.imagePosition = .imageOnly
         }
     }
@@ -235,11 +233,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return .systemGreen
     }
 
+    private func menubarRow(for slot: String) -> (String, Double) {
+        switch slot {
+        case "session": return ("Se", store.data.sessionPercentage)
+        case "weekly":  return ("We", store.data.weeklyPercentage)
+        case "sonnet":  return ("So", store.data.sonnetPercentage)
+        case "design":  return ("De", store.data.designPercentage)
+        case "credits": return ("Cr", store.data.creditsPercentage)
+        default:        return ("Se", store.data.sessionPercentage)
+        }
+    }
+
     // MARK: - Actions
 
     @objc private func toggleFloat()   { floatingWindowController.toggle() }
     @objc private func manualRefresh() { Task { await refresh() } }
     @objc private func openSettings()  { settingsController.show() }
+
+    @objc private func exploreAPI() {
+        Task {
+            do {
+                let raw = try await APIService.shared.fetchRawData()
+                let data = try JSONSerialization.data(withJSONObject: raw, options: [.prettyPrinted, .sortedKeys])
+                let url = URL(fileURLWithPath: NSString("~/Desktop/ClaudeAPI_dump.json").expandingTildeInPath)
+                try data.write(to: url)
+                NSWorkspace.shared.open(url)
+            } catch {
+                await MainActor.run {
+                    let alert = NSAlert()
+                    alert.messageText = "API-Erkundung fehlgeschlagen"
+                    alert.informativeText = error.localizedDescription
+                    alert.runModal()
+                }
+            }
+        }
+    }
 
     // MARK: - Callbacks
 

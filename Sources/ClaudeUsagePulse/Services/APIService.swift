@@ -39,6 +39,42 @@ class APIService {
         cachedOrgId = nil
     }
 
+    /// Holt alle bekannten Endpunkte als Roh-JSON — für API-Erkundung.
+    func fetchRawData() async throws -> [String: Any] {
+        let cookies = KeychainService.loadCookies()
+        guard !cookies.isEmpty else { throw APIError.notAuthenticated }
+
+        if cachedOrgId == nil { cachedOrgId = KeychainService.loadOrgId() }
+        if cachedOrgId == nil {
+            let orgId = try await resolveOrganizationId(cookies: cookies)
+            KeychainService.saveOrgId(orgId)
+            cachedOrgId = orgId
+        }
+
+        var result: [String: Any] = [:]
+
+        if let bootstrap = try? await getJSON(path: "/api/bootstrap", cookies: cookies) {
+            result["bootstrap"] = bootstrap
+        }
+        if let account = try? await getJSON(path: "/api/account", cookies: cookies) {
+            result["account"] = account
+        }
+        if let orgId = cachedOrgId,
+           orgId.range(of: #"^[a-zA-Z0-9_-]{1,64}$"#, options: .regularExpression) != nil {
+            if let usage = try? await getJSON(path: "/api/organizations/\(orgId)/usage", cookies: cookies) {
+                result["usage"] = usage
+            }
+            if let limits = try? await getJSON(path: "/api/organizations/\(orgId)/limits", cookies: cookies) {
+                result["limits"] = limits
+            }
+            if let members = try? await getJSON(path: "/api/organizations/\(orgId)/members", cookies: cookies) {
+                result["members"] = members
+            }
+        }
+        result["_orgId"] = cachedOrgId ?? "unknown"
+        return result
+    }
+
     // MARK: - Private
 
     private func resolveOrganizationId(cookies: [HTTPCookie]) async throws -> String {
@@ -67,23 +103,27 @@ class APIService {
         }
         let json = try await getJSON(path: "/api/organizations/\(orgId)/usage", cookies: cookies)
 
-        let fiveHour = json["five_hour"] as? [String: Any] ?? [:]
-        let sevenDay  = json["seven_day"]  as? [String: Any] ?? [:]
-
-        // utilization ist bereits ein Prozentwert 0–100 (z.B. 43 = 43%)
-        let sessionPct = min(fiveHour["utilization"] as? Double ?? 0, 100)
-        let weeklyPct  = min(sevenDay["utilization"]  as? Double ?? 0, 100)
+        let fiveHour       = json["five_hour"]         as? [String: Any] ?? [:]
+        let sevenDay       = json["seven_day"]          as? [String: Any] ?? [:]
+        let sevenDaySonnet = json["seven_day_sonnet"]   as? [String: Any] ?? [:]
+        let sevenDayDesign = json["seven_day_omelette"] as? [String: Any] ?? [:] // "omelette" = Claude Design
+        let extraUsage     = json["extra_usage"]        as? [String: Any] ?? [:]
 
         let iso = ISO8601DateFormatter()
-        let sessionReset = (fiveHour["resets_at"] as? String).flatMap { iso.date(from: $0) }
-        let weeklyReset  = (sevenDay["resets_at"]  as? String).flatMap { iso.date(from: $0) }
 
         return UsageData(
-            sessionPercentage: sessionPct,
-            weeklyPercentage:  weeklyPct,
-            sessionResetAt:    sessionReset,
-            weeklyResetAt:     weeklyReset,
-            fetchedAt:         Date()
+            sessionPercentage: min(fiveHour["utilization"]       as? Double ?? 0, 100),
+            weeklyPercentage:  min(sevenDay["utilization"]        as? Double ?? 0, 100),
+            sonnetPercentage:  min(sevenDaySonnet["utilization"]  as? Double ?? 0, 100),
+            designPercentage:  min(sevenDayDesign["utilization"]  as? Double ?? 0, 100),
+            creditsPercentage: min(extraUsage["utilization"]      as? Double ?? 0, 100),
+            creditsUsedEUR:    (extraUsage["used_credits"]  as? Double ?? 0) / 100.0,
+            creditsLimitEUR:   (extraUsage["monthly_limit"] as? Double ?? 0) / 100.0,
+            sessionResetAt: (fiveHour["resets_at"]       as? String).flatMap { iso.date(from: $0) },
+            weeklyResetAt:  (sevenDay["resets_at"]        as? String).flatMap { iso.date(from: $0) },
+            sonnetResetAt:  (sevenDaySonnet["resets_at"]  as? String).flatMap { iso.date(from: $0) },
+            designResetAt:  (sevenDayDesign["resets_at"]  as? String).flatMap { iso.date(from: $0) },
+            fetchedAt: Date()
         )
     }
 

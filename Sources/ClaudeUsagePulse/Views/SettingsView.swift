@@ -6,7 +6,8 @@ struct SettingsView: View {
     let onSettingsChanged: () -> Void
 
     @AppStorage("displayMode")      private var displayMode:      String = "menubar"
-    @AppStorage("menubarStyle")     private var menubarStyle:     String = "both"
+    @AppStorage("menubarTop")       private var menubarTop:       String = "session"
+    @AppStorage("menubarBottom")    private var menubarBottom:    String = "weekly"
     @AppStorage("windowStyle")      private var windowStyle:      String = "bars"
     @AppStorage("alwaysOnTop")      private var alwaysOnTop:      Bool   = false
     @AppStorage("refreshInterval")  private var refreshInterval:  Double = 10
@@ -26,12 +27,24 @@ struct SettingsView: View {
 
             if displayMode == "menubar" || displayMode == "both" {
                 Section("Menubar") {
-                    Picker("Menubar zeigt", selection: $menubarStyle) {
-                        Text("Session%").tag("session")
-                        Text("Session% · Wöchentlich%").tag("both")
-                        Text("Höchsten Wert").tag("max")
+                    Picker("Obere Zeile", selection: $menubarTop) {
+                        Text("Session (5h)").tag("session")
+                        Text("Wöchentlich (7d)").tag("weekly")
+                        Text("Nur Sonnet").tag("sonnet")
+                        Text("Claude Design").tag("design")
+                        Text("API Credits").tag("credits")
                     }
-                    .onChange(of: menubarStyle) { onSettingsChanged() }
+                    .onChange(of: menubarTop) { onSettingsChanged() }
+
+                    Picker("Untere Zeile", selection: $menubarBottom) {
+                        Text("Keine").tag("none")
+                        Text("Session (5h)").tag("session")
+                        Text("Wöchentlich (7d)").tag("weekly")
+                        Text("Nur Sonnet").tag("sonnet")
+                        Text("Claude Design").tag("design")
+                        Text("API Credits").tag("credits")
+                    }
+                    .onChange(of: menubarBottom) { onSettingsChanged() }
                 }
             }
 

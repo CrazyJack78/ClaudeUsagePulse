@@ -2,7 +2,9 @@ import SwiftUI
 
 struct FloatingView: View {
     @ObservedObject var store: UsageStore
-    @AppStorage("windowStyle") private var windowStyle: String = "bars"
+    @AppStorage("windowStyle")   private var windowStyle:   String = "bars"
+    @AppStorage("menubarTop")    private var menubarTop:    String = "session"
+    @AppStorage("menubarBottom") private var menubarBottom: String = "weekly"
 
     var body: some View {
         VStack(spacing: 12) {
@@ -28,21 +30,25 @@ struct FloatingView: View {
 
     private var barsView: some View {
         VStack(spacing: 10) {
-            usageRow(
-                label: "Session (5h)",
-                percentage: store.data.sessionPercentage,
-                resetAt: store.data.sessionResetAt
-            )
+            usageRow(label: "Session (5h)",    percentage: store.data.sessionPercentage, resetAt: store.data.sessionResetAt)
             Divider()
-            usageRow(
-                label: "Wöchentlich (7d)",
-                percentage: store.data.weeklyPercentage,
-                resetAt: store.data.weeklyResetAt
-            )
+            usageRow(label: "Wöchentlich (7d)", percentage: store.data.weeklyPercentage,  resetAt: store.data.weeklyResetAt)
+            Divider()
+            usageRow(label: "Nur Sonnet",       percentage: store.data.sonnetPercentage,  resetAt: store.data.sonnetResetAt)
+            Divider()
+            usageRow(label: "Claude Design",    percentage: store.data.designPercentage,  resetAt: store.data.designResetAt)
+            if store.data.creditsLimitEUR > 0 {
+                Divider()
+                usageRow(
+                    label: "API Credits",
+                    percentage: store.data.creditsPercentage,
+                    subtitle: String(format: "%.2f€ / %.2f€ verbraucht", store.data.creditsUsedEUR, store.data.creditsLimitEUR)
+                )
+            }
         }
     }
 
-    private func usageRow(label: String, percentage: Double, resetAt: Date?) -> some View {
+    private func usageRow(label: String, percentage: Double, resetAt: Date? = nil, subtitle: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text(label)
@@ -66,7 +72,11 @@ struct FloatingView: View {
             }
             .frame(height: 7)
 
-            if let reset = resetAt, reset > Date() {
+            if let sub = subtitle {
+                Text(sub)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            } else if let reset = resetAt, reset > Date() {
                 Text("Reset in \(timeUntil(reset))")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
@@ -78,15 +88,22 @@ struct FloatingView: View {
 
     private var circlesView: some View {
         HStack(spacing: 28) {
-            circleIndicator(label: "Session", value: store.data.sessionPercentage, reset: store.data.sessionResetAt)
+            circleIndicator(slot: menubarTop)
             Divider().frame(height: 80)
-            circleIndicator(label: "Wöchentlich", value: store.data.weeklyPercentage, reset: store.data.weeklyResetAt)
+            if menubarBottom == "none" {
+                Spacer()
+            } else {
+                circleIndicator(slot: menubarBottom)
+            }
         }
         .padding(.vertical, 4)
     }
 
-    private func circleIndicator(label: String, value: Double, reset: Date?) -> some View {
-        VStack(spacing: 6) {
+    private func circleIndicator(slot: String) -> some View {
+        let value = valueFor(slot)
+        let label = labelFor(slot)
+        let reset = resetFor(slot)
+        return VStack(spacing: 6) {
             ZStack {
                 Circle()
                     .stroke(Color.gray.opacity(0.18), lineWidth: 7)
@@ -109,6 +126,40 @@ struct FloatingView: View {
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
+        }
+    }
+
+    // MARK: - Slot Helpers
+
+    private func valueFor(_ slot: String) -> Double {
+        switch slot {
+        case "session": return store.data.sessionPercentage
+        case "weekly":  return store.data.weeklyPercentage
+        case "sonnet":  return store.data.sonnetPercentage
+        case "design":  return store.data.designPercentage
+        case "credits": return store.data.creditsPercentage
+        default:        return 0
+        }
+    }
+
+    private func labelFor(_ slot: String) -> String {
+        switch slot {
+        case "session": return "Session (5h)"
+        case "weekly":  return "Wöchentlich"
+        case "sonnet":  return "Nur Sonnet"
+        case "design":  return "Claude Design"
+        case "credits": return "API Credits"
+        default:        return slot
+        }
+    }
+
+    private func resetFor(_ slot: String) -> Date? {
+        switch slot {
+        case "session": return store.data.sessionResetAt
+        case "weekly":  return store.data.weeklyResetAt
+        case "sonnet":  return store.data.sonnetResetAt
+        case "design":  return store.data.designResetAt
+        default:        return nil
         }
     }
 
