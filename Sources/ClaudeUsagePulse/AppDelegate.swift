@@ -186,8 +186,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func renderMenubarImage(rows: [(String, Double)]) -> NSImage {
         let barH  = NSStatusBar.system.thickness
-        let fontS = NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)
-        let fontL = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        let fontS = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        let fontL = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
         let labelColor = NSColor.white
         let stacked = rows.count > 1
 
@@ -204,7 +204,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let maxW = attrRows.map { $0.size().width }.max() ?? 40
-        let size  = NSSize(width: ceil(maxW) + 4, height: barH)
+        let size  = NSSize(width: ceil(maxW) + 14, height: barH)
         let image = NSImage(size: size)
         image.lockFocus()
 
@@ -218,8 +218,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             bgColor.setFill()
             NSBezierPath(
-                roundedRect: NSRect(x: 1, y: 1, width: size.width - 2, height: size.height - 2),
-                xRadius: 5, yRadius: 5
+                roundedRect: NSRect(x: 0, y: 0, width: size.width, height: size.height),
+                xRadius: 6, yRadius: 6
             ).fill()
         }
 
@@ -230,11 +230,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let y: CGFloat = i == 0
                     ? size.height - rowH + (rowH - aSize.height) / 2
                     : (rowH - aSize.height) / 2
-                attr.draw(at: NSPoint(x: size.width - aSize.width - 2, y: y))
+                attr.draw(at: NSPoint(x: (size.width - aSize.width) / 2, y: y))
             }
         } else {
             let aSize = attrRows[0].size()
-            attrRows[0].draw(at: NSPoint(x: size.width - aSize.width - 2, y: (size.height - aSize.height) / 2))
+            attrRows[0].draw(at: NSPoint(x: (size.width - aSize.width) / 2, y: (size.height - aSize.height) / 2))
         }
 
         image.unlockFocus()
