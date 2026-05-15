@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 enum KeychainService {
-    private static let service = "dev.jack.claudebar"
+    private static let service = "dev.jack.claudeusagepulse"
     private static let cookiesKey = "claude_cookies"
     private static let orgIdKey = "org_id"
 

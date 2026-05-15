@@ -45,7 +45,7 @@ class FloatingWindowController: NSObject {
             backing: .buffered,
             defer: false
         )
-        panel.title = "ClaudeBar"
+        panel.title = "ClaudeUsagePulse"
         panel.contentView = hosting
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false

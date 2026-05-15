@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClaudeBar",
+    name: "ClaudeUsagePulse",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "ClaudeBar",
-            path: "Sources/ClaudeBar",
+            name: "ClaudeUsagePulse",
+            path: "Sources/ClaudeUsagePulse",
             exclude: ["Resources/Info.plist"]
         )
     ]

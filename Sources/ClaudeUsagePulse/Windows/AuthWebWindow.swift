@@ -30,7 +30,7 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        win.title = "ClaudeBar — Einmalig bei Claude AI anmelden"
+        win.title = "ClaudeUsagePulse — Einmalig bei Claude AI anmelden"
         win.contentView = wv
         win.delegate = self
         win.center()

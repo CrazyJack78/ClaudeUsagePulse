@@ -28,7 +28,7 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        panel.title = "ClaudeBar — Einstellungen"
+        panel.title = "ClaudeUsagePulse — Einstellungen"
         panel.contentView = NSHostingView(rootView: view)
         panel.delegate = self
         panel.isFloatingPanel = false

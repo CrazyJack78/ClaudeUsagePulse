@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>ClaudeBar</string>
+    <string>ClaudeUsagePulse</string>
     <key>CFBundleIdentifier</key>
-    <string>dev.jack.claudebar</string>
+    <string>dev.jack.claudeusagepulse</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>
