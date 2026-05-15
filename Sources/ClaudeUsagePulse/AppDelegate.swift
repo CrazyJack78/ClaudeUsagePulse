@@ -23,7 +23,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             scheduleTimer()
             Task { await refresh() }
         } else {
-            authWebWindow.show()
+            // WebStore leeren damit alte Sitzungs-Cookies das Login-Fenster nicht sofort schließen
+            WKWebsiteDataStore.default().removeData(
+                ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+                modifiedSince: Date(timeIntervalSince1970: 0)
+            ) { [weak self] in
+                DispatchQueue.main.async { self?.authWebWindow.show() }
+            }
         }
     }
 
@@ -217,11 +223,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ) {
                 // App neu starten → sauberer Login-Prozess
                 DispatchQueue.main.async {
-                    let bundlePath = Bundle.main.bundlePath
-                    let task = Process()
-                    task.launchPath = "/usr/bin/open"
-                    task.arguments = [bundlePath]
-                    try? task.run()
+                    let url = Bundle.main.bundleURL
+                    NSWorkspace.shared.openApplication(
+                        at: url,
+                        configuration: NSWorkspace.OpenConfiguration()
+                    ) { _, _ in }
                     NSApp.terminate(nil)
                 }
             }
