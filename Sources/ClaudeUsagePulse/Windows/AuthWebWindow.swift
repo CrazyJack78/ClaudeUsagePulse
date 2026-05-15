@@ -30,7 +30,7 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        win.title = "ClaudeUsagePulse — Einmalig bei Claude AI anmelden"
+        win.title = "ClaudeUsagePulse — Bei Claude AI anmelden"
         win.animationBehavior = .none
         win.contentView = wv
         win.delegate = self
@@ -40,14 +40,6 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
         self.window = win
 
         wv.load(URLRequest(url: URL(string: "https://claude.ai/login")!))
-
-        // 3s Delay damit die Seite geladen ist bevor nach Cookies gesucht wird
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-            guard let self, self.isShowing else { return }
-            self.cookieCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-                self?.checkForAuthCookies()
-            }
-        }
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -58,20 +50,35 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
         window = nil
     }
 
+    // MARK: - WKNavigationDelegate
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard cookieCheckTimer == nil else { return }
+        cookieCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            self?.checkForAuthCookies()
+        }
+    }
+
     // MARK: - Cookie-Check
 
     private func checkForAuthCookies() {
+        guard let wv = webView,
+              let currentURL = wv.url?.absoluteString else { return }
+
+        let isAuthFlow = currentURL.contains("/login")
+            || currentURL.contains("/auth")
+            || currentURL.contains("accounts.google")
+            || currentURL.contains("appleid.apple.com")
+
+        guard currentURL.contains("claude.ai"), !isAuthFlow else { return }
+
         WKWebsiteDataStore.default().httpCookieStore.getAllCookies { [weak self] cookies in
-            guard let self = self else { return }
+            guard let self else { return }
 
             let sessionCookies = cookies.filter { cookie in
                 (cookie.domain.contains("claude.ai") || cookie.domain.contains("anthropic.com"))
                 && (cookie.name.lowercased().contains("session")
-                    || cookie.name.lowercased().contains("token")
-                    || cookie.name.lowercased().contains("auth")
-                    || cookie.name == "CH-prefers-color-scheme"
-                    || cookie.name.hasPrefix("__Secure")
-                    || cookie.name.hasPrefix("__Host"))
+                    || cookie.name.lowercased().contains("token"))
             }
 
             guard !sessionCookies.isEmpty else { return }
@@ -79,30 +86,35 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
             let allClaude = cookies.filter {
                 $0.domain.contains("claude.ai") || $0.domain.contains("anthropic.com")
             }
-
             KeychainService.saveCookies(allClaude)
 
             DispatchQueue.main.async {
+                guard self.isShowing else { return }
                 self.cookieCheckTimer?.invalidate()
                 self.cookieCheckTimer = nil
                 self.isShowing = false
+                let callback = self.onAuthSuccess
+                self.onAuthSuccess = nil
                 self.teardownWebView()
                 self.window?.close()
                 self.window = nil
-                self.onAuthSuccess?()
+                callback?()
             }
         }
     }
 
-    // WKWebView sauber entladen bevor nil gesetzt wird
+    // MARK: - Teardown
+
     private func teardownWebView() {
-        webView?.stopLoading()
-        webView?.navigationDelegate = nil
-        webView = nil
+        guard let wv = webView else { return }
+        wv.stopLoading()
+        wv.navigationDelegate = nil
+        // WKWebView in eigenem autoreleasepool deallocieren: verhindert
+        // dass sein Dealloc-autorelease in den Haupt-RunLoop-Pool läuft
+        // und am Ende des Zyklus doppelt released wird (SIGSEGV).
+        autoreleasepool {
+            window?.contentView = NSView()  // WKWebView aus Fensterhierarchie entfernen
+            webView = nil                   // letzter Retain → Dealloc passiert hier, im Pool
+        }
     }
-
-    // MARK: - WKNavigationDelegate
-
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {}
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {}
 }
