@@ -94,7 +94,6 @@ class AuthWebWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
     private func teardownWebView() {
         webView?.stopLoading()
         webView?.navigationDelegate = nil
-        webView?.load(URLRequest(url: URL(string: "about:blank")!))
         webView = nil
     }
 
