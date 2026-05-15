@@ -205,20 +205,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.scheduleTimer()
         }
 
-        settingsController.onLogout = { [weak self] in
-            // WebView-Session + Cookies vollständig löschen
+        settingsController.onLogout = {
+            // Keychain leeren
+            KeychainService.clearAll()
+            APIService.shared.resetOrgId()
+
+            // WebView-Session + alle Caches löschen
             WKWebsiteDataStore.default().removeData(
                 ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
                 modifiedSince: Date(timeIntervalSince1970: 0)
             ) {
-                // Verzögerung damit laufende Fenster-Animationen abschließen können
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    KeychainService.clearAll()
-                    APIService.shared.resetOrgId()
-                    self?.store.data = UsageData()
-                    self?.store.isLoading = false
-                    self?.updateMenubar()
-                    self?.authWebWindow.show()
+                // App neu starten → sauberer Login-Prozess
+                DispatchQueue.main.async {
+                    let bundlePath = Bundle.main.bundlePath
+                    let task = Process()
+                    task.launchPath = "/usr/bin/open"
+                    task.arguments = [bundlePath]
+                    try? task.run()
+                    NSApp.terminate(nil)
                 }
             }
         }
