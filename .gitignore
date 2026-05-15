@@ -1,5 +1,5 @@
 .build/
-*.app/
+*.dmg
+*.app
+dmg_tmp/
 .DS_Store
-*.o
-*.d
