@@ -16,6 +16,9 @@ mkdir -p "$APP/Contents/Resources"
 cp .build/release/ClaudeUsagePulse "$APP/Contents/MacOS/ClaudeUsagePulse"
 cp Sources/ClaudeUsagePulse/Resources/Info.plist "$APP/Contents/Info.plist"
 
+echo "Signiere App Bundle..."
+codesign --force --deep --sign - "$APP"
+
 echo "Installiere nach /Applications (einmalige Passwortabfrage)..."
 pkill -x ClaudeUsagePulse 2>/dev/null || true
 sleep 0.5
