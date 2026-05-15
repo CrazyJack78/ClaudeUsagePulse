@@ -211,7 +211,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
                 modifiedSince: Date(timeIntervalSince1970: 0)
             ) {
-                DispatchQueue.main.async {
+                // Verzögerung damit laufende Fenster-Animationen abschließen können
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                     KeychainService.clearAll()
                     APIService.shared.resetOrgId()
                     self?.store.data = UsageData()

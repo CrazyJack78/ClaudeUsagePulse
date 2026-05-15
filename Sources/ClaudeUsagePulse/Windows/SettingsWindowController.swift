@@ -32,6 +32,7 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
         panel.contentView = NSHostingView(rootView: view)
         panel.delegate = self
         panel.isFloatingPanel = false
+        panel.animationBehavior = .none
         panel.center()
         panel.setContentSize(panel.contentView!.fittingSize)
         self.window = panel
