@@ -223,11 +223,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ) {
                 // App neu starten → sauberer Login-Prozess
                 DispatchQueue.main.async {
-                    let url = Bundle.main.bundleURL
-                    NSWorkspace.shared.openApplication(
-                        at: url,
-                        configuration: NSWorkspace.OpenConfiguration()
-                    ) { _, _ in }
+                    let path = Bundle.main.bundlePath
+                    let task = Process()
+                    task.launchPath = "/bin/sh"
+                    task.arguments = ["-c", "sleep 0.8 && open '\(path)'"]
+                    try? task.run()
                     NSApp.terminate(nil)
                 }
             }
