@@ -120,6 +120,13 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 380)
         .padding(.vertical, 8)
+        .safeAreaInset(edge: .bottom) {
+            Text("ClaudeUsagePulse v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 8)
+        }
     }
 
     // MARK: - Hintergrundfarbe Persistenz

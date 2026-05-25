@@ -40,17 +40,19 @@ class FloatingWindowController: NSObject {
         hosting.autoresizingMask = [.width, .height]
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 280, height: 160),
-            styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 380),
+            styleMask: [.titled, .closable, .resizable, .nonactivatingPanel,
+                        .hudWindow, .utilityWindow],
             backing: .buffered,
             defer: false
         )
-        panel.title = "ClaudeUsagePulse"
+        panel.title = "Usage Pulse"
         panel.contentView = hosting
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary]
         panel.isFloatingPanel = true
+        panel.minSize = NSSize(width: 240, height: 200)
 
         if let saved = UserDefaults.standard.string(forKey: "floatingWindowFrame") {
             panel.setFrame(from: saved)
