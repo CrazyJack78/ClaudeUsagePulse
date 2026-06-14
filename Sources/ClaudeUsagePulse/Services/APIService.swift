@@ -97,6 +97,37 @@ class APIService {
         throw APIError.noOrganizationId
     }
 
+    private func parseDate(_ str: String) -> Date? {
+        let iso1 = ISO8601DateFormatter()
+        iso1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = iso1.date(from: str) { return d }
+        let iso2 = ISO8601DateFormatter()
+        iso2.formatOptions = [.withInternetDateTime]
+        if let d = iso2.date(from: str) { return d }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZZZZZ"
+        if let d = df.date(from: str) { return d }
+        df.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+        return df.date(from: str)
+    }
+
+    private func resetStr(from str: String?) -> String {
+        guard let str = str, let date = parseDate(str) else { return "" }
+        let diff = date.timeIntervalSinceNow
+        if diff <= 0 { return "Wird zurückgesetzt…" }
+        let h = Int(diff / 3600)
+        let m = Int(diff.truncatingRemainder(dividingBy: 3600) / 60)
+        return h > 0 ? "Reset in \(h)h \(m)min" : "Reset in \(m) min"
+    }
+
+    private func doubleVal(_ v: Any?) -> Double {
+        if let d = v as? Double { return d }
+        if let i = v as? Int    { return Double(i) }
+        if let n = v as? NSNumber { return n.doubleValue }
+        return 0
+    }
+
     private func fetchUsage(orgId: String, cookies: [HTTPCookie]) async throws -> UsageData {
         guard orgId.range(of: #"^[a-zA-Z0-9_-]{1,64}$"#, options: .regularExpression) != nil else {
             throw APIError.invalidResponse
@@ -109,20 +140,18 @@ class APIService {
         let sevenDayDesign = json["seven_day_omelette"] as? [String: Any] ?? [:] // "omelette" = Claude Design
         let extraUsage     = json["extra_usage"]        as? [String: Any] ?? [:]
 
-        let iso = ISO8601DateFormatter()
-
         return UsageData(
-            sessionPercentage: min(fiveHour["utilization"]       as? Double ?? 0, 100),
-            weeklyPercentage:  min(sevenDay["utilization"]        as? Double ?? 0, 100),
-            sonnetPercentage:  min(sevenDaySonnet["utilization"]  as? Double ?? 0, 100),
-            designPercentage:  min(sevenDayDesign["utilization"]  as? Double ?? 0, 100),
-            creditsPercentage: min(extraUsage["utilization"]      as? Double ?? 0, 100),
+            sessionPercentage: min(doubleVal(fiveHour["utilization"]),      100),
+            weeklyPercentage:  min(doubleVal(sevenDay["utilization"]),       100),
+            sonnetPercentage:  min(doubleVal(sevenDaySonnet["utilization"]), 100),
+            designPercentage:  min(doubleVal(sevenDayDesign["utilization"]), 100),
+            creditsPercentage: min(doubleVal(extraUsage["utilization"]),     100),
             creditsUsedEUR:    (extraUsage["used_credits"]  as? Double ?? 0) / 100.0,
             creditsLimitEUR:   (extraUsage["monthly_limit"] as? Double ?? 0) / 100.0,
-            sessionResetAt: (fiveHour["resets_at"]       as? String).flatMap { iso.date(from: $0) },
-            weeklyResetAt:  (sevenDay["resets_at"]        as? String).flatMap { iso.date(from: $0) },
-            sonnetResetAt:  (sevenDaySonnet["resets_at"]  as? String).flatMap { iso.date(from: $0) },
-            designResetAt:  (sevenDayDesign["resets_at"]  as? String).flatMap { iso.date(from: $0) },
+            sessionResetStr: resetStr(from: fiveHour["resets_at"]        as? String),
+            weeklyResetStr:  resetStr(from: sevenDay["resets_at"]         as? String),
+            sonnetResetStr:  resetStr(from: sevenDaySonnet["resets_at"]   as? String),
+            designResetStr:  resetStr(from: sevenDayDesign["resets_at"]   as? String),
             fetchedAt: Date()
         )
     }

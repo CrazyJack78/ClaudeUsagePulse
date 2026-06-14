@@ -30,25 +30,22 @@ struct FloatingView: View {
 
     private var barsView: some View {
         VStack(spacing: 10) {
-            usageRow(label: "Session (5h)",    percentage: store.data.sessionPercentage, resetAt: store.data.sessionResetAt)
+            usageRow(label: "Session (5h)",    percentage: store.data.sessionPercentage, info: store.data.sessionResetStr)
             Divider()
-            usageRow(label: "Wöchentlich (7d)", percentage: store.data.weeklyPercentage,  resetAt: store.data.weeklyResetAt)
+            usageRow(label: "Wöchentlich (7d)", percentage: store.data.weeklyPercentage, info: store.data.weeklyResetStr)
             Divider()
-            usageRow(label: "Nur Sonnet",       percentage: store.data.sonnetPercentage,  resetAt: store.data.sonnetResetAt)
+            usageRow(label: "Nur Sonnet",       percentage: store.data.sonnetPercentage, info: store.data.sonnetResetStr)
             Divider()
-            usageRow(label: "Claude Design",    percentage: store.data.designPercentage,  resetAt: store.data.designResetAt)
+            usageRow(label: "Claude Design",    percentage: store.data.designPercentage, info: store.data.designResetStr)
             if store.data.creditsLimitEUR > 0 {
                 Divider()
-                usageRow(
-                    label: "API Credits",
-                    percentage: store.data.creditsPercentage,
-                    subtitle: String(format: "%.2f€ / %.2f€ verbraucht", store.data.creditsUsedEUR, store.data.creditsLimitEUR)
-                )
+                usageRow(label: "API Credits", percentage: store.data.creditsPercentage,
+                         info: String(format: "%.2f€ / %.2f€ verbraucht", store.data.creditsUsedEUR, store.data.creditsLimitEUR))
             }
         }
     }
 
-    private func usageRow(label: String, percentage: Double, resetAt: Date? = nil, subtitle: String? = nil) -> some View {
+    private func usageRow(label: String, percentage: Double, info: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text(label)
@@ -72,15 +69,9 @@ struct FloatingView: View {
             }
             .frame(height: 7)
 
-            if let sub = subtitle {
-                Text(sub)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            } else if let reset = resetAt, reset > Date() {
-                Text("Reset in \(timeUntil(reset))")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            }
+            Text(info.isEmpty ? " " : info)
+                .font(.system(size: 10))
+                .foregroundColor(.secondary.opacity(info.isEmpty ? 0 : 1))
         }
     }
 
@@ -121,11 +112,9 @@ struct FloatingView: View {
             Text(label)
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
-            if let reset = reset, reset > Date() {
-                Text(timeUntil(reset))
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            }
+            Text(reset.isEmpty ? "–" : reset)
+                .font(.system(size: 10))
+                .foregroundColor(.secondary.opacity(reset.isEmpty ? 0.4 : 1.0))
         }
     }
 
@@ -153,13 +142,13 @@ struct FloatingView: View {
         }
     }
 
-    private func resetFor(_ slot: String) -> Date? {
+    private func resetFor(_ slot: String) -> String {
         switch slot {
-        case "session": return store.data.sessionResetAt
-        case "weekly":  return store.data.weeklyResetAt
-        case "sonnet":  return store.data.sonnetResetAt
-        case "design":  return store.data.designResetAt
-        default:        return nil
+        case "session": return store.data.sessionResetStr
+        case "weekly":  return store.data.weeklyResetStr
+        case "sonnet":  return store.data.sonnetResetStr
+        case "design":  return store.data.designResetStr
+        default:        return ""
         }
     }
 
@@ -169,15 +158,6 @@ struct FloatingView: View {
         if pct >= 90 { return .red }
         if pct >= 75 { return .orange }
         return .green
-    }
-
-    private func timeUntil(_ date: Date) -> String {
-        let diff = date.timeIntervalSinceNow
-        if diff <= 0 { return "Jetzt" }
-        let h = Int(diff / 3600)
-        let m = Int((diff.truncatingRemainder(dividingBy: 3600)) / 60)
-        if h > 0 { return "\(h)h \(m)min" }
-        return "\(m) min"
     }
 
     private var lastUpdatedText: String {

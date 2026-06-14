@@ -2,6 +2,22 @@
 
 ---
 
+## v0.1.3 — 2026-06-14
+
+### Reset-Zeiten im Floating Window
+- Reset-Countdowns werden jetzt korrekt unter jedem Balken angezeigt: z. B. „Reset in 2h 49min"
+- Berechnung erfolgt beim API-Abruf (nicht per Live-Timer) — aktualisiert sich mit jedem Datenfetch
+- `parseDate` unterstützt jetzt ISO8601 mit Mikrosekunden (z. B. `2026-06-14T14:29:59.548449+00:00`)
+- `doubleVal()` löst `JSONSerialization`-Ambiguität bei Int/Double/NSNumber
+- `UsageData` speichert Reset-Texte direkt als `String` (statt `Date?`) — vermeidet SwiftUI-Timing-Probleme
+- `FloatingWindowController` nutzt Combine-Subscription auf `store.$data`, um `NSHostingView.rootView` manuell zu pushen (Workaround für `@ObservedObject`-Bug in `.nonactivatingPanel`)
+
+### Sonstiges
+- `Info.plist`: Version `0.1.3`, Build `4`
+- Neues DMG und GitHub-Release **v0.1.3** veröffentlicht
+
+---
+
 ## v0.1.2 — 2026-05-25
 
 ### Floating Window überarbeitet
