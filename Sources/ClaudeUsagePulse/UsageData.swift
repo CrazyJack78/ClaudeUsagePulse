@@ -12,6 +12,10 @@ struct UsageData {
     var weeklyResetStr:    String = ""
     var sonnetResetStr:    String = ""
     var designResetStr:    String = ""
+    var sessionResetAt:    Date?  = nil
+    var weeklyResetAt:     Date?  = nil
+    var sonnetResetAt:     Date?  = nil
+    var designResetAt:     Date?  = nil
     var fetchedAt:         Date   = Date()
     var error:             String? = nil
 }

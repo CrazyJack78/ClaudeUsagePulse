@@ -152,6 +152,10 @@ class APIService {
             weeklyResetStr:  resetStr(from: sevenDay["resets_at"]         as? String),
             sonnetResetStr:  resetStr(from: sevenDaySonnet["resets_at"]   as? String),
             designResetStr:  resetStr(from: sevenDayDesign["resets_at"]   as? String),
+            sessionResetAt: (fiveHour["resets_at"]        as? String).flatMap { parseDate($0) },
+            weeklyResetAt:  (sevenDay["resets_at"]         as? String).flatMap { parseDate($0) },
+            sonnetResetAt:  (sevenDaySonnet["resets_at"]   as? String).flatMap { parseDate($0) },
+            designResetAt:  (sevenDayDesign["resets_at"]   as? String).flatMap { parseDate($0) },
             fetchedAt: Date()
         )
     }

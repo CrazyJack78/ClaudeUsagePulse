@@ -12,8 +12,12 @@ struct SettingsView: View {
     @AppStorage("windowStyle")       private var windowStyle:       String = "bars"
     @AppStorage("alwaysOnTop")       private var alwaysOnTop:       Bool   = false
     @AppStorage("refreshInterval")   private var refreshInterval:   Double = 10
+    @AppStorage("ringEnabled")       private var ringEnabled:       Bool   = false
+    @AppStorage("ringSlot")          private var ringSlot:          String = "session"
+    @AppStorage("ringShowElapsed")   private var ringShowElapsed:   Bool   = false
 
     @State private var menubarBgColor: Color = SettingsView.loadBgColor()
+    @State private var ringColor:      Color = SettingsView.loadRingColor()
 
     @State private var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
 
@@ -47,6 +51,30 @@ struct SettingsView: View {
                         }
                         .foregroundColor(.secondary)
                         .font(.system(size: 12))
+                    }
+                }
+
+                Section("Zeitring") {
+                    Toggle("Ring anzeigen", isOn: $ringEnabled)
+                        .onChange(of: ringEnabled) { onSettingsChanged() }
+
+                    if ringEnabled {
+                        Picker("Metrik", selection: $ringSlot) {
+                            Text("Session (5h)").tag("session")
+                            Text("Wöchentlich (7d)").tag("weekly")
+                            Text("Nur Sonnet").tag("sonnet")
+                            Text("Claude Design").tag("design")
+                        }
+                        .onChange(of: ringSlot) { onSettingsChanged() }
+
+                        ColorPicker("Ringfarbe", selection: $ringColor)
+                            .onChange(of: ringColor) {
+                                SettingsView.saveRingColor(ringColor)
+                                onSettingsChanged()
+                            }
+
+                        Toggle("Verstrichene Zeit anzeigen", isOn: $ringShowElapsed)
+                            .onChange(of: ringShowElapsed) { onSettingsChanged() }
                     }
                 }
 
@@ -146,6 +174,20 @@ struct SettingsView: View {
         let ns = NSColor(color)
         if let data = try? NSKeyedArchiver.archivedData(withRootObject: ns, requiringSecureCoding: false) {
             UserDefaults.standard.set(data, forKey: "menubarBgColor")
+        }
+    }
+
+    static func loadRingColor() -> Color {
+        guard let data = UserDefaults.standard.data(forKey: "ringColorData"),
+              let ns = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: data)
+        else { return Color(NSColor.systemTeal) }
+        return Color(ns)
+    }
+
+    static func saveRingColor(_ color: Color) {
+        let ns = NSColor(color)
+        if let data = try? NSKeyedArchiver.archivedData(withRootObject: ns, requiringSecureCoding: false) {
+            UserDefaults.standard.set(data, forKey: "ringColorData")
         }
     }
 }

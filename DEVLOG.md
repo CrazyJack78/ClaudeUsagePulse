@@ -2,6 +2,21 @@
 
 ---
 
+## v0.1.4 — 2026-06-14
+
+### Zeitring im Menubar
+- Neuer optionaler Fortschrittsring um die Menubar-Pill
+- Startet bei 12 Uhr, läuft im Uhrzeigersinn; grauer Track + farbiger Fortschrittsbogen
+- Einstellungen: Ring an/aus, Metrik (Session/Weekly/Sonnet/Design), Farbe, Restzeit vs. verstrichene Zeit
+- Pill und Text rücken bei aktivem Ring vertikal ein → sichtbarer Abstand zwischen Ring und Schrift
+- Horizontale Bildbreite bei aktivem Ring leicht erhöht (4pt pro Seite)
+
+### Sonstiges
+- `Info.plist`: Version `0.1.4`, Build `5`
+- Neues DMG und GitHub-Release **v0.1.4** veröffentlicht
+
+---
+
 ## v0.1.3 — 2026-06-14
 
 ### Reset-Zeiten im Floating Window
