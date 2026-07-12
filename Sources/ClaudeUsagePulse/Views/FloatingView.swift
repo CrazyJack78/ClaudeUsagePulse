@@ -2,9 +2,10 @@ import SwiftUI
 
 struct FloatingView: View {
     @ObservedObject var store: UsageStore
+    @ObservedObject private var metricStore = MetricConfigStore.shared
     @AppStorage("windowStyle")   private var windowStyle:   String = "bars"
-    @AppStorage("menubarTop")    private var menubarTop:    String = "session"
-    @AppStorage("menubarBottom") private var menubarBottom: String = "weekly"
+    @AppStorage("menubarTop")    private var menubarTop:    String = "five_hour"
+    @AppStorage("menubarBottom") private var menubarBottom: String = "seven_day"
 
     var body: some View {
         VStack(spacing: 12) {
@@ -30,19 +31,26 @@ struct FloatingView: View {
 
     private var barsView: some View {
         VStack(spacing: 10) {
-            usageRow(label: "Session (5h)",    percentage: store.data.sessionPercentage, info: store.data.sessionResetStr)
-            Divider()
-            usageRow(label: "Wöchentlich (7d)", percentage: store.data.weeklyPercentage, info: store.data.weeklyResetStr)
-            Divider()
-            usageRow(label: "Nur Sonnet",       percentage: store.data.sonnetPercentage, info: store.data.sonnetResetStr)
-            Divider()
-            usageRow(label: "Claude Design",    percentage: store.data.designPercentage, info: store.data.designResetStr)
-            if store.data.creditsLimitEUR > 0 {
-                Divider()
-                usageRow(label: "API Credits", percentage: store.data.creditsPercentage,
-                         info: String(format: "%.2f€ / %.2f€ verbraucht", store.data.creditsUsedEUR, store.data.creditsLimitEUR))
+            let configs = metricStore.configs.filter { $0.visibleInFloat }
+            ForEach(Array(configs.enumerated()), id: \.element.id) { idx, config in
+                let metric = store.data[config.key]
+                usageRow(
+                    label:      config.name,
+                    percentage: metric.percentage,
+                    info:       infoText(for: config, metric: metric)
+                )
+                if idx < configs.count - 1 {
+                    Divider()
+                }
             }
         }
+    }
+
+    private func infoText(for config: MetricConfig, metric: MetricData) -> String {
+        if let credit = metric.creditInfo, credit.limit > 0 {
+            return String(format: "%.2f€ / %.2f€ verbraucht", credit.used, credit.limit)
+        }
+        return metric.resetStr
     }
 
     private func usageRow(label: String, percentage: Double, info: String) -> some View {
@@ -79,35 +87,35 @@ struct FloatingView: View {
 
     private var circlesView: some View {
         HStack(spacing: 28) {
-            circleIndicator(slot: menubarTop)
+            circleIndicator(key: menubarTop)
             Divider().frame(height: 80)
             if menubarBottom == "none" {
                 Spacer()
             } else {
-                circleIndicator(slot: menubarBottom)
+                circleIndicator(key: menubarBottom)
             }
         }
         .padding(.vertical, 4)
     }
 
-    private func circleIndicator(slot: String) -> some View {
-        let value = valueFor(slot)
-        let label = labelFor(slot)
-        let reset = resetFor(slot)
+    private func circleIndicator(key: String) -> some View {
+        let metric = store.data[key]
+        let label  = metricStore.name(for: key)
+        let reset  = metric.resetStr
         return VStack(spacing: 6) {
             ZStack {
                 Circle()
                     .stroke(Color.gray.opacity(0.18), lineWidth: 7)
                     .frame(width: 70, height: 70)
                 Circle()
-                    .trim(from: 0, to: CGFloat(min(value, 100) / 100))
-                    .stroke(colorFor(value), style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                    .trim(from: 0, to: CGFloat(min(metric.percentage, 100) / 100))
+                    .stroke(colorFor(metric.percentage), style: StrokeStyle(lineWidth: 7, lineCap: .round))
                     .frame(width: 70, height: 70)
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.5), value: value)
-                Text("\(Int(value))%")
+                    .animation(.easeOut(duration: 0.5), value: metric.percentage)
+                Text("\(Int(metric.percentage))%")
                     .font(.system(size: 15, weight: .bold, design: .monospaced))
-                    .foregroundColor(colorFor(value))
+                    .foregroundColor(colorFor(metric.percentage))
             }
             Text(label)
                 .font(.system(size: 11))
@@ -115,40 +123,6 @@ struct FloatingView: View {
             Text(reset.isEmpty ? "–" : reset)
                 .font(.system(size: 10))
                 .foregroundColor(.secondary.opacity(reset.isEmpty ? 0.4 : 1.0))
-        }
-    }
-
-    // MARK: - Slot Helpers
-
-    private func valueFor(_ slot: String) -> Double {
-        switch slot {
-        case "session": return store.data.sessionPercentage
-        case "weekly":  return store.data.weeklyPercentage
-        case "sonnet":  return store.data.sonnetPercentage
-        case "design":  return store.data.designPercentage
-        case "credits": return store.data.creditsPercentage
-        default:        return 0
-        }
-    }
-
-    private func labelFor(_ slot: String) -> String {
-        switch slot {
-        case "session": return "Session (5h)"
-        case "weekly":  return "Wöchentlich"
-        case "sonnet":  return "Nur Sonnet"
-        case "design":  return "Claude Design"
-        case "credits": return "API Credits"
-        default:        return slot
-        }
-    }
-
-    private func resetFor(_ slot: String) -> String {
-        switch slot {
-        case "session": return store.data.sessionResetStr
-        case "weekly":  return store.data.weeklyResetStr
-        case "sonnet":  return store.data.sonnetResetStr
-        case "design":  return store.data.designResetStr
-        default:        return ""
         }
     }
 

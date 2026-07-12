@@ -5,6 +5,7 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     var onLogout: (() -> Void)?
     var onSettingsChanged: (() -> Void)?
+    var onRefreshMetrics: (() -> Void)?
 
     func show() {
         if window == nil { buildWindow() }
@@ -23,7 +24,8 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
     private func buildWindow() {
         let view = SettingsView(
             onLogout: { [weak self] in self?.onLogout?() },
-            onSettingsChanged: { [weak self] in self?.onSettingsChanged?() }
+            onSettingsChanged: { [weak self] in self?.onSettingsChanged?() },
+            onRefreshMetrics: { [weak self] in self?.onRefreshMetrics?() }
         )
 
         let panel = NSPanel(
@@ -38,7 +40,9 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
         panel.isFloatingPanel = false
         panel.animationBehavior = .none
         panel.center()
-        panel.setContentSize(panel.contentView!.fittingSize)
+        let fitting   = panel.contentView!.fittingSize
+        let maxHeight = (NSScreen.main?.visibleFrame.height ?? 800) - 80
+        panel.setContentSize(CGSize(width: fitting.width, height: min(fitting.height, maxHeight)))
         self.window = panel
     }
 }

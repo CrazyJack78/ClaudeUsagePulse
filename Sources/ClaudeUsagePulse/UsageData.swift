@@ -1,21 +1,18 @@
 import Foundation
 
+struct MetricData {
+    var percentage: Double = 0
+    var resetStr:   String = ""
+    var resetAt:    Date?  = nil
+    var creditInfo: (used: Double, limit: Double)? = nil
+}
+
 struct UsageData {
-    var sessionPercentage: Double = 0
-    var weeklyPercentage:  Double = 0
-    var sonnetPercentage:  Double = 0
-    var designPercentage:  Double = 0
-    var creditsPercentage: Double = 0
-    var creditsUsedEUR:    Double = 0
-    var creditsLimitEUR:   Double = 0
-    var sessionResetStr:   String = ""
-    var weeklyResetStr:    String = ""
-    var sonnetResetStr:    String = ""
-    var designResetStr:    String = ""
-    var sessionResetAt:    Date?  = nil
-    var weeklyResetAt:     Date?  = nil
-    var sonnetResetAt:     Date?  = nil
-    var designResetAt:     Date?  = nil
-    var fetchedAt:         Date   = Date()
-    var error:             String? = nil
+    var metrics:   [String: MetricData] = [:]
+    var fetchedAt: Date    = Date()
+    var error:     String? = nil
+
+    subscript(key: String) -> MetricData {
+        metrics[key] ?? MetricData()
+    }
 }

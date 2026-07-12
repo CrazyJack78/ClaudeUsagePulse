@@ -11,45 +11,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let store = UsageStore()
     private lazy var floatingWindowController = FloatingWindowController(store: store)
-    private let authWebWindow     = AuthWebWindow()
+    private let authWebWindow      = AuthWebWindow()
     private let settingsController = SettingsWindowController()
 
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        migrateUserDefaults()
         setupStatusItem()
         setupCallbacks()
         checkAuthAndStart()
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return false
-    }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationWillTerminate(_ notification: Notification) {
         floatingWindowController.savePosition()
     }
 
-    // MARK: - Auth-Check beim Start
+    // MARK: - Migration alter UserDefaults-Keys
+
+    private func migrateUserDefaults() {
+        let map = [
+            "session": "five_hour",
+            "weekly":  "seven_day",
+            "sonnet":  "seven_day_sonnet",
+            "design":  "seven_day_omelette",
+            "credits": "extra_usage",
+        ]
+        for key in ["menubarTop", "menubarBottom", "ringSlot"] {
+            if let val = UserDefaults.standard.string(forKey: key), let mapped = map[val] {
+                UserDefaults.standard.set(mapped, forKey: key)
+            }
+        }
+    }
+
+    // MARK: - Auth
 
     private func checkAuthAndStart() {
-        guard KeychainService.hasCookies() else {
-            setUnauthenticated()
-            return
-        }
-        // Credentials vorhanden → API testen
+        guard KeychainService.hasCookies() else { setUnauthenticated(); return }
         Task { @MainActor in
             do {
-                store.data      = try await APIService.shared.fetchUsageData()
+                store.data       = try await APIService.shared.fetchUsageData()
                 store.data.error = nil
                 isAuthenticated  = true
                 scheduleTimer()
                 updateMenubar()
             } catch {
-                // Credentials ungültig → alles bereinigen
-                cleanupCredentials { [weak self] in
-                    self?.setUnauthenticated()
-                }
+                cleanupCredentials { [weak self] in self?.setUnauthenticated() }
             }
         }
     }
@@ -71,17 +80,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         WKWebsiteDataStore.default().removeData(
             ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
             modifiedSince: Date(timeIntervalSince1970: 0)
-        ) {
-            DispatchQueue.main.async { completion?() }
-        }
+        ) { DispatchQueue.main.async { completion?() } }
     }
 
     // MARK: - Login
 
     @objc private func showLogin() {
-        cleanupCredentials { [weak self] in
-            self?.authWebWindow.show()
-        }
+        cleanupCredentials { [weak self] in self?.authWebWindow.show() }
     }
 
     // MARK: - StatusItem
@@ -96,11 +101,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func statusButtonClicked() {
-        if NSApp.currentEvent?.type == .rightMouseUp {
-            showContextMenu()
-        } else {
-            handleLeftClick()
-        }
+        if NSApp.currentEvent?.type == .rightMouseUp { showContextMenu() }
+        else { handleLeftClick() }
     }
 
     private func handleLeftClick() {
@@ -116,25 +118,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
 
         if isAuthenticated {
-            let s  = Int(store.data.sessionPercentage)
-            let w  = Int(store.data.weeklyPercentage)
-            let sn = Int(store.data.sonnetPercentage)
-            let d  = Int(store.data.designPercentage)
-            let info = NSMenuItem(title: "Se \(s)%  We \(w)%  Son \(sn)%  Des \(d)%", action: nil, keyEquivalent: "")
+            // Erste Zeile: alle bekannten Metriken kompakt
+            let summary = MetricConfigStore.shared.configs.map { c in
+                "\(c.shortLabel) \(Int(store.data[c.key].percentage))%"
+            }.joined(separator: "  ")
+            let info = NSMenuItem(title: summary, action: nil, keyEquivalent: "")
             info.isEnabled = false
             menu.addItem(info)
             menu.addItem(.separator())
+
             let floatLabel = floatingWindowController.isVisible ? "Fenster ausblenden" : "Fenster anzeigen"
-            menu.addItem(makeItem(floatLabel, action: #selector(toggleFloat), key: "f"))
+            menu.addItem(makeItem(floatLabel,          action: #selector(toggleFloat),   key: "f"))
             menu.addItem(makeItem("Jetzt aktualisieren", action: #selector(manualRefresh), key: "r"))
             menu.addItem(.separator())
-            menu.addItem(makeItem("Einstellungen…", action: #selector(openSettings), key: ","))
+            menu.addItem(makeItem("Einstellungen…",    action: #selector(openSettings),  key: ","))
         } else {
             menu.addItem(makeItem("Bei Claude anmelden…", action: #selector(showLogin), key: "l"))
         }
 
         menu.addItem(.separator())
-        let quitItem = NSMenuItem(title: "ClaudeUsagePulse beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "ClaudeUsagePulse beenden",
+                                  action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
         menu.addItem(quitItem)
 
@@ -153,24 +157,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateMenubar() {
         guard let btn = statusItem?.button else { return }
-
         if !isAuthenticated {
-            DispatchQueue.main.async {
-                btn.image = nil
-                btn.title = "Anmelden"
-            }
+            DispatchQueue.main.async { btn.image = nil; btn.title = "Anmelden" }
             return
         }
-
-        let top    = UserDefaults.standard.string(forKey: "menubarTop")    ?? "session"
-        let bottom = UserDefaults.standard.string(forKey: "menubarBottom") ?? "weekly"
+        let top    = UserDefaults.standard.string(forKey: "menubarTop")    ?? "five_hour"
+        let bottom = UserDefaults.standard.string(forKey: "menubarBottom") ?? "seven_day"
 
         DispatchQueue.main.async {
-            if self.store.data.error != nil {
-                btn.image = nil
-                btn.title = "⚠️"
-                return
-            }
+            if self.store.data.error != nil { btn.image = nil; btn.title = "⚠️"; return }
             let rows: [(String, Double)]
             if bottom == "none" {
                 rows = [self.menubarRow(for: top)]
@@ -183,30 +178,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func menubarRow(for key: String) -> (String, Double) {
+        let label = MetricConfigStore.shared.shortLabel(for: key)
+        let pct   = store.data[key].percentage
+        return (label, pct)
+    }
+
+    // MARK: - Menubar-Bild
+
     private func renderMenubarImage(rows: [(String, Double)]) -> NSImage {
-        let barH  = NSStatusBar.system.thickness
-        let fontS = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
-        let fontL = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
-        let labelColor = NSColor.white
+        let barH   = NSStatusBar.system.thickness
+        let fontS  = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        let fontL  = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
         let stacked = rows.count > 1
 
         let attrRows: [NSAttributedString] = rows.map { (label, pct) in
             let str = NSMutableAttributedString()
             str.append(NSAttributedString(string: "\(label) ", attributes: [
-                .font: fontS, .foregroundColor: labelColor
+                .font: fontS, .foregroundColor: NSColor.white
             ]))
             str.append(NSAttributedString(string: "\(Int(pct))%", attributes: [
                 .font: stacked ? fontS : fontL,
-                .foregroundColor: self.menubarColor(for: pct)
+                .foregroundColor: menubarColor(for: pct)
             ]))
             return str
         }
 
         let ringEnabled = UserDefaults.standard.bool(forKey: "ringEnabled")
-        let maxW     = attrRows.map { $0.size().width }.max() ?? 40
-        let hPadding: CGFloat = ringEnabled ? 22 : 14   // ring braucht mehr Luft seitlich
-        let size     = NSSize(width: ceil(maxW) + hPadding, height: barH)
-        let image = NSImage(size: size)
+        let maxW      = attrRows.map { $0.size().width }.max() ?? 40
+        let hPadding: CGFloat = ringEnabled ? 22 : 14
+        let size      = NSSize(width: ceil(maxW) + hPadding, height: barH)
+        let image     = NSImage(size: size)
         image.lockFocus()
 
         let vPad: CGFloat = ringEnabled ? 2.5 : 0
@@ -238,20 +240,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } else {
             let aSize = attrRows[0].size()
-            attrRows[0].draw(at: NSPoint(x: (size.width - aSize.width) / 2, y: vPad + (innerH - aSize.height) / 2))
+            attrRows[0].draw(at: NSPoint(x: (size.width - aSize.width) / 2,
+                                         y: vPad + (innerH - aSize.height) / 2))
         }
 
-        if ringEnabled {
-            drawRing(in: size)
-        }
+        if ringEnabled { drawRing(in: size) }
 
         image.unlockFocus()
         image.isTemplate = false
         return image
     }
 
+    // MARK: - Zeitring
+
     private func drawRing(in size: NSSize) {
-        let slot        = UserDefaults.standard.string(forKey: "ringSlot") ?? "session"
+        let slot        = UserDefaults.standard.string(forKey: "ringSlot") ?? "five_hour"
         let showElapsed = UserDefaults.standard.bool(forKey: "ringShowElapsed")
         let fraction    = ringFraction(slot: slot, showElapsed: showElapsed)
 
@@ -263,25 +266,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ringColor = .systemTeal
         }
 
-        let lw: CGFloat  = 1.5
-        let ringRect = NSRect(x: lw / 2, y: lw / 2, width: size.width - lw, height: size.height - lw)
+        let lw: CGFloat = 1.5
+        let ringRect = NSRect(x: lw/2, y: lw/2, width: size.width - lw, height: size.height - lw)
         let cr       = min(ringRect.height / 2, 5.5)
 
-        // Track (full ring, dim)
         let trackPath = clockwiseRingPath(rect: ringRect, cornerRadius: cr)
         trackPath.lineWidth = lw
         NSColor.white.withAlphaComponent(0.2).setStroke()
         trackPath.stroke()
 
-        // Progress arc
         guard fraction > 0.005 else { return }
-        let W    = ringRect.width
-        let H    = ringRect.height
-        let perim: CGFloat = 2 * (W - 2*cr) + 2 * (H - 2*cr) + 2 * .pi * cr
+        let perim: CGFloat = 2*(ringRect.width - 2*cr) + 2*(ringRect.height - 2*cr) + 2 * .pi * cr
         let progressPath = clockwiseRingPath(rect: ringRect, cornerRadius: cr)
         var dashes: [CGFloat] = [CGFloat(fraction) * perim, perim]
         progressPath.setLineDash(&dashes, count: dashes.count, phase: 0)
-        progressPath.lineWidth   = lw
+        progressPath.lineWidth    = lw
         progressPath.lineCapStyle = .round
         ringColor.setStroke()
         progressPath.stroke()
@@ -290,39 +289,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func clockwiseRingPath(rect: NSRect, cornerRadius r: CGFloat) -> NSBezierPath {
         let path = NSBezierPath()
         let x = rect.minX, y = rect.minY, W = rect.width, H = rect.height
-        // Clockwise starting from top-center (12 o'clock)
         path.move(to: NSPoint(x: x + W/2, y: y + H))
         path.line(to: NSPoint(x: x + W - r, y: y + H))
-        path.appendArc(withCenter: NSPoint(x: x + W - r, y: y + H - r), radius: r,
-                       startAngle: 90, endAngle: 0, clockwise: true)
+        path.appendArc(withCenter: NSPoint(x: x+W-r, y: y+H-r), radius: r, startAngle: 90,  endAngle: 0,   clockwise: true)
         path.line(to: NSPoint(x: x + W, y: y + r))
-        path.appendArc(withCenter: NSPoint(x: x + W - r, y: y + r), radius: r,
-                       startAngle: 0, endAngle: 270, clockwise: true)
+        path.appendArc(withCenter: NSPoint(x: x+W-r, y: y+r),   radius: r, startAngle: 0,   endAngle: 270, clockwise: true)
         path.line(to: NSPoint(x: x + r, y: y))
-        path.appendArc(withCenter: NSPoint(x: x + r, y: y + r), radius: r,
-                       startAngle: 270, endAngle: 180, clockwise: true)
+        path.appendArc(withCenter: NSPoint(x: x+r,   y: y+r),   radius: r, startAngle: 270, endAngle: 180, clockwise: true)
         path.line(to: NSPoint(x: x, y: y + H - r))
-        path.appendArc(withCenter: NSPoint(x: x + r, y: y + H - r), radius: r,
-                       startAngle: 180, endAngle: 90, clockwise: true)
+        path.appendArc(withCenter: NSPoint(x: x+r,   y: y+H-r), radius: r, startAngle: 180, endAngle: 90,  clockwise: true)
         path.line(to: NSPoint(x: x + W/2, y: y + H))
         return path
     }
 
     private func ringFraction(slot: String, showElapsed: Bool) -> Double {
-        let now = Date()
-        let resetAt: Date?
-        let period: TimeInterval
-        switch slot {
-        case "weekly":  resetAt = store.data.weeklyResetAt;  period = 7 * 24 * 3600
-        case "sonnet":  resetAt = store.data.sonnetResetAt;  period = 7 * 24 * 3600
-        case "design":  resetAt = store.data.designResetAt;  period = 7 * 24 * 3600
-        default:        resetAt = store.data.sessionResetAt; period = 5 * 3600
-        }
-        guard let reset = resetAt, reset > now else {
+        let metric = store.data[slot]
+        guard let resetAt = metric.resetAt, resetAt > Date() else {
             return showElapsed ? 1.0 : 0.0
         }
-        let remaining = min(reset.timeIntervalSince(now) / period, 1.0)
+        let period = inferPeriod(for: slot)
+        let remaining = min(resetAt.timeIntervalSinceNow / period, 1.0)
         return showElapsed ? 1.0 - remaining : remaining
+    }
+
+    private func inferPeriod(for key: String) -> TimeInterval {
+        if key.contains("five_hour") { return 5 * 3600 }
+        if key.contains("seven_day") { return 7 * 24 * 3600 }
+        return 5 * 3600
     }
 
     private func menubarColor(for pct: Double) -> NSColor {
@@ -331,41 +324,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return .systemGreen
     }
 
-    private func menubarRow(for slot: String) -> (String, Double) {
-        switch slot {
-        case "session": return ("Se", store.data.sessionPercentage)
-        case "weekly":  return ("We", store.data.weeklyPercentage)
-        case "sonnet":  return ("So", store.data.sonnetPercentage)
-        case "design":  return ("De", store.data.designPercentage)
-        case "credits": return ("Cr", store.data.creditsPercentage)
-        default:        return ("Se", store.data.sessionPercentage)
-        }
-    }
-
     // MARK: - Actions
 
     @objc private func toggleFloat()   { floatingWindowController.toggle() }
     @objc private func manualRefresh() { Task { await refresh() } }
     @objc private func openSettings()  { settingsController.show() }
-
-    @objc private func exploreAPI() {
-        Task {
-            do {
-                let raw = try await APIService.shared.fetchRawData()
-                let data = try JSONSerialization.data(withJSONObject: raw, options: [.prettyPrinted, .sortedKeys])
-                let url = URL(fileURLWithPath: NSString("~/Desktop/ClaudeAPI_dump.json").expandingTildeInPath)
-                try data.write(to: url)
-                NSWorkspace.shared.open(url)
-            } catch {
-                await MainActor.run {
-                    let alert = NSAlert()
-                    alert.messageText = "API-Erkundung fehlgeschlagen"
-                    alert.informativeText = error.localizedDescription
-                    alert.runModal()
-                }
-            }
-        }
-    }
 
     // MARK: - Callbacks
 
@@ -382,13 +345,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.scheduleTimer()
         }
 
+        settingsController.onRefreshMetrics = { [weak self] in
+            Task { await self?.refresh() }
+        }
+
         settingsController.onLogout = { [weak self] in
             self?.settingsController.close()
             self?.refreshTimer?.invalidate()
             self?.refreshTimer = nil
-            self?.cleanupCredentials {
-                self?.setUnauthenticated()
-            }
+            self?.cleanupCredentials { self?.setUnauthenticated() }
         }
     }
 
@@ -396,7 +361,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func scheduleTimer() {
         refreshTimer?.invalidate()
-        let minutes = UserDefaults.standard.double(forKey: "refreshInterval")
+        let minutes  = UserDefaults.standard.double(forKey: "refreshInterval")
         let interval = (minutes > 0 ? minutes : 10) * 60
         refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { await self?.refresh() }
@@ -408,7 +373,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var isRefreshing = false
 
     @MainActor
-    private func refresh() async {
+    func refresh() async {
         guard isAuthenticated, !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }

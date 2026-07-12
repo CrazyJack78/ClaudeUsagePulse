@@ -2,22 +2,29 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsView: View {
-    let onLogout: () -> Void
+    let onLogout:          () -> Void
     let onSettingsChanged: () -> Void
+    let onRefreshMetrics:  () -> Void
+
+    @ObservedObject private var metricStore = MetricConfigStore.shared
 
     @AppStorage("displayMode")       private var displayMode:       String = "menubar"
-    @AppStorage("menubarTop")        private var menubarTop:        String = "session"
-    @AppStorage("menubarBottom")     private var menubarBottom:     String = "weekly"
+    @AppStorage("menubarTop")        private var menubarTop:        String = "five_hour"
+    @AppStorage("menubarBottom")     private var menubarBottom:     String = "seven_day"
     @AppStorage("menubarBackground") private var menubarBackground: Bool   = true
     @AppStorage("windowStyle")       private var windowStyle:       String = "bars"
     @AppStorage("alwaysOnTop")       private var alwaysOnTop:       Bool   = false
     @AppStorage("refreshInterval")   private var refreshInterval:   Double = 10
     @AppStorage("ringEnabled")       private var ringEnabled:       Bool   = false
-    @AppStorage("ringSlot")          private var ringSlot:          String = "session"
+    @AppStorage("ringSlot")          private var ringSlot:          String = "five_hour"
     @AppStorage("ringShowElapsed")   private var ringShowElapsed:   Bool   = false
 
     @State private var menubarBgColor: Color = SettingsView.loadBgColor()
     @State private var ringColor:      Color = SettingsView.loadRingColor()
+    @State private var editingConfigs: [MetricConfig] = []
+    @State private var isRefreshing = false
+    @State private var rawAPIKeys: [String] = []
+    @State private var showRawKeys = false
 
     @State private var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
 
@@ -43,7 +50,6 @@ struct SettingsView: View {
                                 SettingsView.saveBgColor(menubarBgColor)
                                 onSettingsChanged()
                             }
-
                         Button("Farbe zurücksetzen") {
                             menubarBgColor = SettingsView.defaultBgColor()
                             SettingsView.saveBgColor(menubarBgColor)
@@ -60,10 +66,9 @@ struct SettingsView: View {
 
                     if ringEnabled {
                         Picker("Metrik", selection: $ringSlot) {
-                            Text("Session (5h)").tag("session")
-                            Text("Wöchentlich (7d)").tag("weekly")
-                            Text("Nur Sonnet").tag("sonnet")
-                            Text("Claude Design").tag("design")
+                            ForEach(metricStore.configs) { c in
+                                Text(c.name).tag(c.key)
+                            }
                         }
                         .onChange(of: ringSlot) { onSettingsChanged() }
 
@@ -80,23 +85,89 @@ struct SettingsView: View {
 
                 Section("Menubar-Slots") {
                     Picker("Obere Zeile", selection: $menubarTop) {
-                        Text("Session (5h)").tag("session")
-                        Text("Wöchentlich (7d)").tag("weekly")
-                        Text("Nur Sonnet").tag("sonnet")
-                        Text("Claude Design").tag("design")
-                        Text("API Credits").tag("credits")
+                        ForEach(metricStore.configs) { c in
+                            Text(c.name).tag(c.key)
+                        }
                     }
                     .onChange(of: menubarTop) { onSettingsChanged() }
 
                     Picker("Untere Zeile", selection: $menubarBottom) {
                         Text("Keine").tag("none")
-                        Text("Session (5h)").tag("session")
-                        Text("Wöchentlich (7d)").tag("weekly")
-                        Text("Nur Sonnet").tag("sonnet")
-                        Text("Claude Design").tag("design")
-                        Text("API Credits").tag("credits")
+                        ForEach(metricStore.configs) { c in
+                            Text(c.name).tag(c.key)
+                        }
                     }
                     .onChange(of: menubarBottom) { onSettingsChanged() }
+                }
+
+                // Balken-Konfiguration
+                Section {
+                    // Spalten-Header
+                    HStack(spacing: 10) {
+                        Text("☑")
+                            .frame(width: 16)
+                        Text("API-Key / Name")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("Kürzel")
+                            .frame(width: 56, alignment: .center)
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+
+                    Divider()
+
+                    ForEach($editingConfigs) { $config in
+                        HStack(spacing: 10) {
+                            // Checkbox: im schwebenden Fenster anzeigen
+                            Toggle("", isOn: $config.visibleInFloat)
+                                .toggleStyle(.checkbox)
+                                .labelsHidden()
+                                .onChange(of: config.visibleInFloat) { saveEdits() }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(config.key)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                                HStack(spacing: 8) {
+                                    TextField("", text: $config.name)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.system(size: 13))
+                                        .onChange(of: config.name) { saveEdits() }
+                                    TextField("", text: $config.shortLabel)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 52)
+                                        .font(.system(size: 13, design: .monospaced))
+                                        .multilineTextAlignment(.center)
+                                        .onChange(of: config.shortLabel) { saveEdits() }
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    HStack {
+                        Text("Balken konfigurieren")
+                        Spacer()
+                        Button {
+                            isRefreshing = true
+                            onRefreshMetrics()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                editingConfigs = metricStore.configs
+                                rawAPIKeys = APIService.shared.lastRawKeys
+                                isRefreshing = false
+                            }
+                        } label: {
+                            if isRefreshing {
+                                ProgressView().scaleEffect(0.7)
+                            } else {
+                                Label("Aktualisieren", systemImage: "arrow.clockwise")
+                                    .font(.system(size: 11))
+                            }
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(isRefreshing)
+                    }
                 }
             }
 
@@ -116,11 +187,8 @@ struct SettingsView: View {
             Section("Allgemein") {
                 Toggle("Bei Anmeldung starten", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) {
-                        if launchAtLogin {
-                            try? SMAppService.mainApp.register()
-                        } else {
-                            try? SMAppService.mainApp.unregister()
-                        }
+                        if launchAtLogin { try? SMAppService.mainApp.register() }
+                        else             { try? SMAppService.mainApp.unregister() }
                     }
             }
 
@@ -141,13 +209,47 @@ struct SettingsView: View {
             } header: {
                 Text("Account")
             } footer: {
-                Text("Beim Abmelden werden alle gespeicherten Anmeldedaten gelöscht. Beim nächsten Start öffnet sich das Login-Fenster.")
+                Text("Beim Abmelden werden alle gespeicherten Anmeldedaten gelöscht.")
                     .font(.system(size: 11))
+            }
+
+            if !rawAPIKeys.isEmpty {
+                Section {
+                    DisclosureGroup(
+                        isExpanded: $showRawKeys,
+                        content: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(rawAPIKeys, id: \.self) { key in
+                                    let isMetric = metricStore.configs.contains { $0.key == key }
+                                    HStack {
+                                        Text(key)
+                                            .font(.system(size: 11, design: .monospaced))
+                                            .foregroundStyle(.primary)
+                                        Spacer()
+                                        Text(isMetric ? "✓ Metrik" : "– kein utilization")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(isMetric ? Color.green : Color.orange)
+                                    }
+                                    .padding(.vertical, 1)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        },
+                        label: {
+                            Label("API-Keys (\(rawAPIKeys.count) gesamt)", systemImage: "list.bullet")
+                                .font(.system(size: 12))
+                        }
+                    )
+                } header: {
+                    Text("Debug — letzte API-Antwort")
+                }
             }
         }
         .formStyle(.grouped)
-        .frame(width: 380)
+        .frame(width: 400)
         .padding(.vertical, 8)
+        .onAppear { editingConfigs = metricStore.configs }
+        .onChange(of: metricStore.configs) { editingConfigs = metricStore.configs }
         .safeAreaInset(edge: .bottom) {
             Text("ClaudeUsagePulse v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
                 .font(.system(size: 11))
@@ -157,11 +259,16 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Hintergrundfarbe Persistenz
-
-    static func defaultBgColor() -> Color {
-        Color(NSColor.black.withAlphaComponent(0.45))
+    private func saveEdits() {
+        for config in editingConfigs {
+            metricStore.update(config)
+        }
+        onSettingsChanged()
     }
+
+    // MARK: - Farbpersistenz
+
+    static func defaultBgColor() -> Color { Color(NSColor.black.withAlphaComponent(0.45)) }
 
     static func loadBgColor() -> Color {
         guard let data = UserDefaults.standard.data(forKey: "menubarBgColor"),

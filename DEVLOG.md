@@ -2,6 +2,33 @@
 
 ---
 
+## v0.1.5 — 2026-07-12
+
+### Dynamisches Metrik-System
+- **MetricConfig / MetricConfigStore**: Neue Datenmodell-Schicht; entdeckte API-Keys werden dynamisch gespeichert, mit vorgeschlagenen Namen/Kürzeln vorbelegt und per UserDefaults persistiert
+- **Automatische Discovery**: `APIService.fetchUsage` iteriert alle JSON-Keys, sucht nach `utilization`-Feld; neue Keys werden beim nächsten Fetch automatisch hinzugefügt, weggefallene entfernt
+- **UserDefaults-Migration**: `migrateUserDefaults()` übersetzt alte Schlüssel (`session`, `weekly`, `sonnet`, `design`, `credits`) auf neue API-Key-Namen (`five_hour`, `seven_day`, etc.)
+- **Bekannte API-Keys** mit vorgeschlagenen Anzeigenamen: `five_hour`, `seven_day`, `seven_day_sonnet`, `seven_day_omelette`, `seven_day_fable`, `seven_day_fable_5`, `seven_day_opus`, `seven_day_haiku`, `extra_usage`
+
+### Einstellungen — Balken konfigurieren
+- Liste aller entdeckten Metriken mit Checkbox (sichtbar im schwebenden Fenster), editierbarem Name und Kürzel
+- **Aktualisieren-Button**: Löst neuen API-Fetch aus, lädt Configs neu — inkl. Debug-Keys nach 3s
+- **Scrollbar**: Settings-Panel wird auf `screen.visibleFrame.height - 80` gedeckelt → SwiftUI Form scrollt intern
+- **Debug-Section "API-Keys"**: Nach Aktualisieren werden alle Top-Level-JSON-Keys der API-Antwort angezeigt (inkl. Markierung ob sie ein `utilization`-Feld haben → als Metrik erkannt)
+
+### Schwebendes Fenster
+- Balken-Filter basiert nur noch auf `visibleInFloat`-Checkbox — keine Sonderbedingung für Credits mehr
+- Credits werden wie jede andere Metrik durch die Checkbox ein-/ausgeblendet
+
+### Technisch
+- `UsageData` und `MetricData` vollständig neu geschrieben (dictionary-basiert statt hardcodierter Felder)
+- `APIService.lastRawKeys`: speichert alle Top-Level-Keys für Debug
+- `FloatingView` und `SettingsView` nutzen `@ObservedObject MetricConfigStore.shared`
+- `Info.plist`: Version `0.1.5`, Build `6`
+- Neues DMG und GitHub-Release **v0.1.5** veröffentlicht
+
+---
+
 ## v0.1.4 — 2026-06-14
 
 ### Zeitring im Menubar
