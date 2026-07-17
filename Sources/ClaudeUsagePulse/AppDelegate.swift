@@ -20,6 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         migrateUserDefaults()
         setupStatusItem()
         setupCallbacks()
+        NotificationService.shared.requestPermission()
         checkAuthAndStart()
     }
 
@@ -385,6 +386,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             store.data       = try await APIService.shared.fetchUsageData()
             store.isLoading  = false
             store.data.error = nil
+            NotificationService.shared.checkAndNotify(data: store.data)
             updateMenubar()
         } catch APIError.notAuthenticated {
             store.isLoading  = false

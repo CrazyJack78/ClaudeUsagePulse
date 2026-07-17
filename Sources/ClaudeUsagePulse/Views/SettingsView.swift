@@ -26,6 +26,11 @@ struct SettingsView: View {
     @State private var rawAPIKeys: [String] = []
     @State private var showRawKeys = false
 
+    @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = true
+    @AppStorage("speedWarnEnabled")     private var speedWarnEnabled:     Bool = true
+    @AppStorage("speedWarnPercent")     private var speedWarnPercent:     Int  = 10
+    @AppStorage("speedWarnMinutes")     private var speedWarnMinutes:     Int  = 5
+
     @State private var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
 
     var body: some View {
@@ -192,8 +197,39 @@ struct SettingsView: View {
                     }
             }
 
+            Section {
+                Toggle("Warnungen aktivieren", isOn: $notificationsEnabled)
+
+                if notificationsEnabled {
+                    Toggle("Geschwindigkeits-Warnung", isOn: $speedWarnEnabled)
+
+                    if speedWarnEnabled {
+                        HStack(spacing: 6) {
+                            Text("Wenn mehr als")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                            Stepper("\(speedWarnPercent)%", value: $speedWarnPercent, in: 1...50)
+                                .fixedSize()
+                            Text("in")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                            Stepper("\(speedWarnMinutes) min", value: $speedWarnMinutes, in: 1...30)
+                                .fixedSize()
+                        }
+                        .font(.system(size: 12))
+                    }
+                }
+            } header: {
+                Text("Warnungen")
+            } footer: {
+                Text("75% → Systembenachrichtigung · 90% → Benachrichtigung + rotes Popup")
+                    .font(.system(size: 11))
+            }
+
             Section("Aktualisierung") {
                 Picker("Intervall", selection: $refreshInterval) {
+                    Text("1 Minute").tag(1.0)
+                    Text("2 Minuten").tag(2.0)
                     Text("5 Minuten").tag(5.0)
                     Text("10 Minuten").tag(10.0)
                     Text("15 Minuten").tag(15.0)

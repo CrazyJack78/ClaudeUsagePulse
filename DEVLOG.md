@@ -2,6 +2,32 @@
 
 ---
 
+## v0.1.6 — 2026-07-13
+
+### DMG-Installer mit Drag-to-Applications Layout
+- Neues `create_dmg.sh` Skript erstellt ein professionelles macOS-DMG mit Hintergrundbild, Applications-Symlink und vorpositionierten Icons
+- Hintergrundbild (540×380 px, dunkelgrau) wird via Python 3 (stdlib, kein externes Tool) automatisch generiert — Pfeil zeigt von App-Icon zu Applications-Ordner
+- Finder-Layout wird per AppleScript gesetzt (Icon-Größe 100 px, App links bei 130/195, Ordner rechts bei 410/195)
+- Nutzer sieht beim Öffnen sofort: App links → Pfeil → Applications rechts → einfach rüberziehen
+
+### Verbrauchswarnungen
+- **75%-Schwelle**: macOS Systemnotification + Sound ("⚠️ [Metrik] bei 75%")
+- **90%-Schwelle**: Notification + rotes Popup-Fenster das über allen anderen Fenstern erscheint (schließt sich nach 10 Sek. automatisch)
+- **Geschwindigkeits-Warner**: konfigurierbar — warnt wenn der Verbrauch eine bestimmte Rate überschreitet (Standard: >10% in 5 min); Cooldown verhindert Spam
+- Beim ersten App-Start werden Notifications automatisch beantragt (macOS-Berechtigungsdialog)
+- Warnungen werden beim Erststart unterdrückt (nur Änderungen auslösen Alerts, nicht der initiale Ladezustand)
+
+### Einstellungen
+- Neue Section "Warnungen": Master-Toggle, Geschwindigkeits-Warnung Toggle + konfigurierbarer Schwellenwert (Stepper für % und Minuten)
+- Neue Refresh-Intervalle: 1 Minute und 2 Minuten
+
+### Technisch
+- `NotificationService.swift`: Singleton, UNUserNotificationCenterDelegate, Absolut- und Geschwindigkeits-Checks mit Duplikat-Schutz
+- `AlertPopupWindow.swift`: NSPanel (borderless, floating level) mit SwiftUI-View (rotes RoundedRectangle, 10s Auto-Close)
+- `Info.plist`: Version `0.1.6`, Build `7`
+
+---
+
 ## v0.1.5 — 2026-07-12
 
 ### Dynamisches Metrik-System
