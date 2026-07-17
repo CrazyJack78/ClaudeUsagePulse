@@ -204,19 +204,10 @@ struct SettingsView: View {
                     Toggle("Geschwindigkeits-Warnung", isOn: $speedWarnEnabled)
 
                     if speedWarnEnabled {
-                        HStack(spacing: 6) {
-                            Text("Wenn mehr als")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                            Stepper("\(speedWarnPercent)%", value: $speedWarnPercent, in: 1...50)
-                                .fixedSize()
-                            Text("in")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                            Stepper("\(speedWarnMinutes) min", value: $speedWarnMinutes, in: 1...30)
-                                .fixedSize()
-                        }
-                        .font(.system(size: 12))
+                        Stepper("Wenn mehr als \(speedWarnPercent)% ...",
+                                value: $speedWarnPercent, in: 1...50)
+                        Stepper("... in \(speedWarnMinutes) Minuten",
+                                value: $speedWarnMinutes, in: 1...30)
                     }
                 }
             } header: {
@@ -282,6 +273,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.visible)
         .frame(width: 400)
         .padding(.vertical, 8)
         .onAppear { editingConfigs = metricStore.configs }

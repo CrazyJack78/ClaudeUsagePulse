@@ -35,6 +35,7 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
         panel.title = "ClaudeUsagePulse — Einstellungen"
+        panel.backgroundColor = NSColor.windowBackgroundColor
         panel.contentView = NSHostingView(rootView: view)
         panel.delegate = self
         panel.isFloatingPanel = false
