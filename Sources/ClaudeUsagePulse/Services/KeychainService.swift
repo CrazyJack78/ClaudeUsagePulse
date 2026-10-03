@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import ClaudeUsageCore
 
 enum KeychainService {
     private static let service = "dev.jack.claudeusagepulse"
@@ -51,6 +52,15 @@ enum KeychainService {
 
     static func hasCookies() -> Bool {
         fetch(key: cookiesKey) != nil
+    }
+
+    /// Ob eine echte Sitzung hinterlegt ist.
+    ///
+    /// `hasCookies()` allein genügt nicht: Die anonymen Cookies von claude.ai
+    /// lassen sich ebenso speichern, belegen aber keine Anmeldung. Frühere
+    /// Versionen haben genau solche Cookies abgelegt.
+    static func hasValidSession() -> Bool {
+        SessionCookies.isLoggedIn(loadCookies())
     }
 
     static func clearAll() {

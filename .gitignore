@@ -3,3 +3,4 @@
 *.app
 dmg_tmp/
 .DS_Store
+.dmg_bg_*/

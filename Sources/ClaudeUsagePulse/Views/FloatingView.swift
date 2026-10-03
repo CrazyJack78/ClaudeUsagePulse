@@ -1,4 +1,5 @@
 import SwiftUI
+import ClaudeUsageCore
 
 struct FloatingView: View {
     @ObservedObject var store: UsageStore
@@ -47,10 +48,24 @@ struct FloatingView: View {
     }
 
     private func infoText(for config: MetricConfig, metric: MetricData) -> String {
-        if let credit = metric.creditInfo, credit.limit > 0 {
-            return String(format: "%.2f€ / %.2f€ verbraucht", credit.used, credit.limit)
+        if let credit = metric.creditInfo {
+            let used = money(credit.used, currency: credit.currency)
+            if let limit = credit.limit, limit > 0 {
+                return "\(used) / \(money(limit, currency: credit.currency)) verbraucht"
+            }
+            return "\(used) verbraucht"
         }
         return metric.resetStr
+    }
+
+    /// Die API nennt die Währung inzwischen selbst (USD oder EUR) — nicht mehr fest €.
+    private func money(_ amount: Double, currency: String) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currency
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSNumber(value: amount))
+            ?? String(format: "%.2f %@", amount, currency)
     }
 
     private func usageRow(label: String, percentage: Double, info: String) -> some View {

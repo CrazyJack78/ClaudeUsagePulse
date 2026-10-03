@@ -2,6 +2,103 @@
 
 ---
 
+## v0.1.7 — 2026-10-03
+
+**Anmeldung repariert, Absturz behoben, neues API-Schema**
+
+Die Anmeldung schlug ab Anfang Oktober fehl: Google meldete einen Fehler, der Weg über
+E-Mail und sechsstelligen Code schien zu klappen, danach stürzte die App ab. Drei Ursachen,
+die zusammenwirkten.
+
+### 1. Die App hielt sich zu früh für angemeldet
+
+`AuthWebWindow` akzeptierte jedes Cookie, dessen Name "session" oder "token" enthält.
+Darauf passt **`activitySessionId`** — eines von rund dreizehn Cookies, die claude.ai
+schon *ohne* Anmeldung setzt. Geschützt hat davor nur ein Filter auf die Adresse
+(`/login`, `/auth`, `accounts.google`).
+
+Sobald die Anmeldung über eine Zwischenseite lief, deren Adresse keines dieser Muster
+enthält — und genau das tut der Schritt mit der Code-Eingabe — hielt die App den Vorgang
+für beendet und schloss das Fenster mittendrin. Deshalb lief es vorher lange gut: Früher
+blieb man während der Anmeldung durchgehend auf `/login`.
+
+Jetzt zählt allein `sessionKey`, exakt verglichen. Der Adressfilter ist ersatzlos entfallen —
+es ist gleichgültig, über welche Zwischenseiten die Anmeldung läuft.
+
+### 2. Der Absturz: doppelte Freigabe des Fensters
+
+Ein per Code erzeugtes `NSWindow` hat `isReleasedWhenClosed == true`. Der alte Ablauf
+
+```swift
+self.window?.close()   // gibt das Fenster frei
+self.window = nil      // ARC gibt es ein zweites Mal frei
+```
+
+gibt es also zweimal frei. Der Absturz fällt nicht an dieser Stelle auf, sondern erst beim
+Leeren des Autorelease-Pools des Main-Run-Loops — daher die vier Absturzberichte, deren
+Stapel nur noch `objc_release` → `AutoreleasePoolPage::releaseUntil` zeigen.
+
+Das `WKWebView` wurde seit `683facc` bereits dauerhaft gehalten, das `NSWindow` aber nicht.
+Jetzt wird auch das Fenster einmal erzeugt, nie freigegeben und beim Erfolg nur noch
+ausgeblendet (`orderOut`). Zusätzlich steht `isReleasedWhenClosed = false`.
+
+Damit ist der alte offene Punkt "Post-Login-Crash" erledigt.
+
+### 3. Selbst nach korrekter Anmeldung kamen keine Daten
+
+`resolveOrganizationId` nahm die erste Organisation aus `/api/bootstrap`. Genau dieser Weg
+liefert eine Organisation, für die `/usage` mit
+`403 "Invalid authorization for organization"` antwortet. `/api/account` antwortet
+inzwischen selbst mit 403.
+
+Neu: Die Organisation kommt zuerst aus dem zuletzt erfolgreichen Wert, dann aus dem Cookie
+**`lastActiveOrg`**, und erst zuletzt aus dem Bootstrap — dort als Liste, die der Reihe nach
+durchprobiert wird. Gemerkt wird eine Organisation erst, wenn der Abruf geklappt hat.
+
+### 4. Nicht mehr bei jedem Fehler abmelden
+
+Vorher führte beim Start *jeder* Fehler zu `cleanupCredentials()` — auch ein kurzer
+Netzwerkaussetzer. Jetzt wird nur bei einer echt abgelaufenen Anmeldung abgemeldet;
+vorübergehende Störungen zeigen eine Meldung, und der nächste Durchlauf versucht es erneut.
+Eine Cloudflare-Abweisung ("Just a moment…") wird als eigener Fall erkannt.
+
+Ausserdem prüft der Start mit `hasValidSession()`, ob überhaupt eine echte Sitzung
+hinterlegt ist — gespeicherte anonyme Cookies gelten nicht mehr als Anmeldung.
+
+### 5. Neues Antwortschema der API
+
+Die Antwort von `/usage` hat seit Juli 2026 drei Ebenen nebeneinander:
+
+- **`limits[]`** — die aktuelle Quelle, enthält auch modellspezifische Grenzen
+- **Top-Level-Schlüssel** — die ältere Form, viele stehen inzwischen auf `null`
+- **`spend`** — Guthaben, löst `extra_usage` ab
+
+Daraus folgen zwei Korrekturen:
+
+- **Der Fable-Balken erscheint endlich.** Modellspezifische Grenzen stehen ausschliesslich
+  in `limits[].scope.model.display_name` und tauchen in keinem Top-Level-Schlüssel auf.
+  Die alte Auswertung konnte sie prinzipiell nicht finden — unabhängig davon, wie oft
+  aktualisiert wurde.
+- **Der 0-%-Geisterbalken ist weg.** `extra_usage` hat `utilization: null`; in Swift besteht
+  `NSNull` die Prüfung `!= nil`, die Metrik wurde also mit 0 % angelegt. `null` gilt jetzt
+  durchgehend als "nicht vorhanden".
+
+Guthaben wird in der Währung angezeigt, die die API nennt (USD oder EUR), nicht mehr fest €.
+
+### Umbau der Projektstruktur
+
+Die reine Logik liegt neu im Target **`ClaudeUsageCore`** (`SessionCookies`, `UsageParser`,
+`UsageData`) — ein `executableTarget` lässt sich nicht testen. Dazu das erste Testtarget des
+Projekts: **34 Tests**, die unter anderem festhalten, dass `activitySessionId` nicht als
+Anmeldung durchgeht und dass Fable aus `limits[]` kommt.
+
+```bash
+swift test     # 34 Tests
+./build.sh
+```
+
+---
+
 ## v0.1.6 — 2026-07-13
 
 ### DMG-Installer mit Drag-to-Applications Layout

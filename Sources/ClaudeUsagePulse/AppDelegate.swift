@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import ClaudeUsageCore
 
 class AppDelegate: NSObject, NSApplicationDelegate {
 
@@ -50,7 +51,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Auth
 
     private func checkAuthAndStart() {
-        guard KeychainService.hasCookies() else { setUnauthenticated(); return }
+        // Auf eine echte Sitzung prüfen — gespeicherte anonyme Cookies zählen nicht.
+        guard KeychainService.hasValidSession() else {
+            cleanupCredentials { [weak self] in self?.setUnauthenticated() }
+            return
+        }
         Task { @MainActor in
             do {
                 store.data       = try await APIService.shared.fetchUsageData()
@@ -58,8 +63,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 isAuthenticated  = true
                 scheduleTimer()
                 updateMenubar()
-            } catch {
+            } catch APIError.notAuthenticated {
+                // Nur hier ist die Anmeldung wirklich hinfällig
                 cleanupCredentials { [weak self] in self?.setUnauthenticated() }
+            } catch {
+                // Netzwerkaussetzer oder eine Abweisung durch Cloudflare sind
+                // vorübergehend. Die Anmeldung bleibt bestehen, der nächste
+                // Durchlauf versucht es erneut.
+                isAuthenticated  = true
+                store.data.error = error.localizedDescription
+                scheduleTimer()
+                updateMenubar()
             }
         }
     }
