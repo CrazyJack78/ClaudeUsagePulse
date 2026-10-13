@@ -3,3 +3,8 @@
 *.app
 dmg_tmp/
 .DS_Store
+.dmg_bg_*/
+
+# Gesprächschroniken gehören nicht in ein öffentliches Repo (siehe Obsidian-Vault)
+docs/SESSION-CHRONIK.md
+*CHRONIK*.md

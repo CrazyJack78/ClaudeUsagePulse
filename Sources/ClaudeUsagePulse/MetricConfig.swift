@@ -22,7 +22,14 @@ struct MetricConfig: Codable, Identifiable, Equatable {
         "extra_usage":        ("API Credits",      "Cr"),
     ]
 
-    static func suggested(for key: String) -> MetricConfig {
+    /// - Parameter suggestedName: Name aus der API, etwa "Fable" aus
+    ///   `limits[].scope.model.display_name`. Hat Vorrang vor dem aus dem
+    ///   Schlüssel abgeleiteten Namen, sonst hiesse der Balken "Scoped Fable".
+    static func suggested(for key: String, suggestedName: String? = nil) -> MetricConfig {
+        if let name = suggestedName, !name.isEmpty {
+            let short = String(name.filter { !$0.isWhitespace }.prefix(2))
+            return MetricConfig(key: key, name: name, shortLabel: short)
+        }
         if let s = knownSuggestions[key] {
             return MetricConfig(key: key, name: s.name, shortLabel: s.short)
         }
@@ -68,14 +75,19 @@ class MetricConfigStore: ObservableObject {
 
     // MARK: - Discovery
 
-    /// Merged neu entdeckte API-Keys mit bestehenden Configs (erhält User-Edits)
-    func merge(discoveredKeys: [String]) {
+    /// Merged neu entdeckte Metriken mit bestehenden Configs (erhält User-Edits).
+    /// Die Reihenfolge der Entdeckung bestimmt die Reihenfolge neuer Balken.
+    func merge(discovered: [(key: String, suggestedName: String?)]) {
         let existingKeys = Set(configs.map { $0.key })
+        let discoveredKeys = discovered.map { $0.key }
+
         var updated = configs
-        for key in discoveredKeys where !existingKeys.contains(key) {
-            updated.append(MetricConfig.suggested(for: key))
+        for entry in discovered where !existingKeys.contains(entry.key) {
+            updated.append(
+                MetricConfig.suggested(for: entry.key, suggestedName: entry.suggestedName)
+            )
         }
-        // Entfernte Keys herausnehmen
+        // Weggefallene Metriken herausnehmen
         updated = updated.filter { discoveredKeys.contains($0.key) }
         configs = updated
         save()

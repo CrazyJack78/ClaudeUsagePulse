@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import ClaudeUsageCore
 
 class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationService()
