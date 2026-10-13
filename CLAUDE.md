@@ -1,5 +1,9 @@
 # ClaudeUsagePulse — Projektkontext für Claude
 
+> **Vor inhaltlicher Arbeit:** [WIEDERAUFNAHME.md](WIEDERAUFNAHME.md) lesen — dort steht,
+> was sich nicht aus dem Code ableiten lässt: verworfene Wege, Absicht-statt-Fehler,
+> und der Plattform-Gegensatz zur Android-Fassung.
+
 > **Hinweis:** Die `CLAUDE.md` eine Ebene höher (`Claude Usage/CLAUDE.md`) beschreibt einen
 > READ-ONLY Security-Scanner für das Nachbarprojekt `ClaudeKarma/`. Diese Regeln gelten für
 > **Scan-Vorgänge an ClaudeKarma**, nicht für die Entwicklung von ClaudeUsagePulse.
